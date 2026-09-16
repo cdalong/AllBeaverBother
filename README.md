@@ -1,7 +1,8 @@
 # Minigame Reset
 
-Lets you instantly reset a DK64 minigame — automatically on failure, or on demand with a button
-combo — instead of sitting through the fail text and outro cutscene.
+Lets you reset a DK64 minigame — automatically on failure, or on demand with a button combo —
+instead of sitting through the fail text and outro cutscene. A brief "3, 2, 1, GO!" overlay plays
+before you're dropped back into the fresh attempt.
 
 Covers Jetpac (Cranky's Lab), every banana barrel bonus minigame (K.Rool barrel challenges,
 Batty Barrel Bandit, Kremling Kosh, Rambi Arena), and Minecart Mayhem.
@@ -16,10 +17,14 @@ Batty Barrel Bandit, Kremling Kosh, Rambi Arena), and Minecart Mayhem.
 
 ## Controls
 
-Hold **L + R + Z** together during a minigame to reset it immediately.
+Hold **L + R + Z** together during a minigame to trigger a reset.
 
-Failing a bonus barrel minigame or Minecart Mayhem also resets it immediately on its own — the
-fail text/sound and outro cutscene are skipped entirely.
+Failing a bonus barrel minigame or Minecart Mayhem also triggers a reset on its own — either way,
+the fail text/sound and outro cutscene are skipped and replaced with a short "3, 2, 1, GO!"
+countdown before the minigame starts over.
+
+Jetpac resets are instant, with no countdown — it's a fast arcade loop and has no cutscenes to
+skip in the first place.
 
 ## Building from Source
 
@@ -66,9 +71,9 @@ Every barrel variant funnels its outcome through two functions shared by the who
 - `func_bonus_800264E0` — universal win
 - `func_bonus_800265C0` — universal fail
 
-**Auto-reset on failure** hooks `func_bonus_800265C0` with `RECOMP_HOOK_RETURN`, so it runs right
-after the game's own fail-state transition has been applied — meaning our reset is what actually
-sticks, before the fail text/outro cutscene would otherwise play.
+**Auto-reset on failure** hooks `func_bonus_800265C0` with `RECOMP_HOOK_RETURN`, so it fires right
+after the game's own fail-state transition has been applied, starting the countdown before the
+fail text/outro cutscene would otherwise play.
 
 **Manual combo reset** hooks each barrel variant's own per-frame update function with
 `RECOMP_HOOK` (entry, before the original body runs):
@@ -98,9 +103,28 @@ Same architecture as the bonus barrels, just with its own function names:
 - `func_minecart_800240DC` — fail
 - `func_minecart_80024FD0` — per-frame ride update (covers all three difficulties via `current_map`)
 
-`RECOMP_HOOK_RETURN` on the fail function handles auto-reset; `RECOMP_HOOK` on the ride update
-function handles the manual combo reset. Both reuse the exact same `unk11C`/bit-`0x10` reset as
-the bonus barrels.
+`RECOMP_HOOK_RETURN` on the fail function starts the countdown; `RECOMP_HOOK` on the ride update
+function handles the manual combo trigger and ticks the countdown every frame. Both reuse the
+exact same `unk11C`/bit-`0x10` reset as the bonus barrels.
+
+### The countdown
+
+Reset doesn't happen instantly — it queues a ~4 second "3, 2, 1, GO!" countdown (`main.c`'s
+`countdown_start`/`countdown_tick`), then performs the actual actor reset once it elapses. Only
+one minigame can be active at a time, so the mod tracks a single pending countdown rather than
+one per actor.
+
+The countdown text is drawn with `printStyledText`, a pure display-list function (it just appends
+draw commands to the `Gfx*` list and returns the advanced pointer — no allocation or handle to
+free) queued each frame via `addActorToTextOverlayRenderArray`, the same mechanism the bonus
+barrels already use for their own on-screen hint text. Because that queue is immediate-mode (a
+draw callback only stays visible if re-enqueued every frame it should appear), the countdown has
+to be driven by a per-frame tick rather than a one-shot registration — which is why every
+minigame's manual-reset hook now calls a shared `minigame_reset_tick()` each frame instead of
+resetting directly.
+
+The combo trigger is edge-detected (`reset_combo_pressed`), so holding L+R+Z doesn't restart the
+countdown on every frame it's held.
 
 ## Project Layout
 
@@ -114,8 +138,14 @@ the bonus barrels.
 
 ## Known Limitations
 
-- Race minigames (e.g. Kremling Kaos, animal races) use a different win/fail subsystem than the
-  bonus barrels/minecart and are not covered yet.
+- Animal Races (beetle, car, seal races) are not covered yet. Unlike the bonus barrels/minecart,
+  they have no shared win/fail chokepoint — each race type has its own bespoke checkpoint/timeout
+  logic. Castle Car Race and Gloomy Galleon Seal Race look like the safest candidates to add next;
+  Beetle Race and Frantic Factory Car Race carry a real risk that a reset would leave stale
+  race-stage state behind (their stage counter isn't reset by the same bit-`0x10` trick used
+  everywhere else), so they need more investigation before being wired up.
+- The countdown's ~1 second-per-step pacing is a rough estimate of the game's logic tick rate, not
+  a confirmed value — it may run faster or slower in practice.
 - The manual combo reset doesn't check whether a minigame is mid win/fail transition when pressed;
   triggering it during that window hasn't been tested.
 - Built and reviewed against the decomp source, but not yet verified in-game — please report
