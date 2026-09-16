@@ -25,6 +25,8 @@ typedef struct {
     s32 player_index;
     u8 pad348[0x78C - 0x348];
     s32 unk78C;
+    u8 pad790[0x798 - 0x790];
+    u8 unk798; // difficulty flag: nonzero = 3 starting lives, zero = 5
 } JetpacGameStruct;
 
 extern JetpacGameStruct D_jetpac_8002EC30;

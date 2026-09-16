@@ -33,6 +33,10 @@ RECOMP_PATCH void func_jetpac_80025368(Competitor *arg0) {
             D_jetpac_8002EC30.unk18 = arg0->current_score;
             func_jetpac_80024A4C();
         }
+        // Reset to a fresh starting life count - same values func_jetpac_80024390
+        // uses at a real game start - instead of respawning with the exhausted
+        // (negative) count that got us into this branch in the first place.
+        arg0->lives = D_jetpac_8002EC30.unk798 != 0 ? 3 : 5;
         func_jetpac_80024F9C(2); // was 5 (game over) - auto-reset: respawn instead
     } else {
         if (other_player->lives >= 0) {
