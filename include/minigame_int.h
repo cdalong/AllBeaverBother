@@ -19,7 +19,8 @@ typedef struct {
 } Competitor;
 
 typedef struct {
-    u8 pad0[0x1C];
+    u8 pad0[0x18];
+    s32 unk18; // high score, compared against a losing player's current_score
     Competitor player[2];
     s32 player_index;
     u8 pad348[0x78C - 0x348];
