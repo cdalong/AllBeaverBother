@@ -25,8 +25,9 @@ extern Maps next_map;
 extern Maps current_map;
 extern u8 D_global_asm_8076A0B2;
 
-// Remembers which map the player actually tried to enter, for the
-// diagnostic logging below - we never touch this ourselves otherwise.
+// Remembers which map the player actually tried to enter, so the reward
+// fix below knows what was really requested - we never touch this global
+// ourselves otherwise, only next_map.
 static Maps g_original_target_map;
 
 static int is_redirect_target_map(Maps map) {
@@ -88,37 +89,60 @@ RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_
     }
 }
 
-// --- DIAGNOSTIC: log every permanent-flag change ---
+// --- Fix Battle Arena rewards ---
 //
-// recomp_on_flag_change is a real event the base game declares and fires
-// itself right before changing any flag (see sound_options_patches.c
-// upstream) - like dk64recomp_every_frame, this is the safe
-// RECOMP_CALLBACK mechanism, not a hook. It's passed the flag index,
-// target state, and flag type BY POINTER, meaning a subscriber can observe
-// (and in principle rewrite) what's about to change.
+// Confirmed by logging every flag change while winning a redirected
+// challenge: the reward-granting code DOES run right after the win
+// cutscene, but computes flag == -1 (an invalid/no-op sentinel) instead of
+// the real reward, because it derives "which reward" from `current_map` -
+// which is now Beaver Bother's, not the arena actually entered.
 //
-// This build just logs every change via recomp_printf, so we can see what
-// flag(s) actually get touched when winning a redirected minigame (Beaver
-// Bother) - needed because we don't have decompiled source for Beaver
-// Bother's own win condition, or for whatever code normally grants a
-// bonus barrel's reward after you return to the overworld. Remove once
-// we've learned what we need from it.
-RECOMP_CALLBACK("*", recomp_on_flag_change) void log_flag_change(s16 *flag, u8 *target_state, u8 *flag_type) {
-    recomp_printf("[MinigameReset] flag_change: flag=%d target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
-        (int)*flag, (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
+// func_bonus_80024D8C (dk64_decomp src/bonus/code_0.c) is the real,
+// decompiled function that maps a Battle Arena's `current_map` to its
+// crown's permanent flag index (returning -1 for anything else, matching
+// exactly what we observed). This mirrors that same mapping, but keyed on
+// the ORIGINAL map the player actually entered (captured above, before we
+// overwrote next_map) instead of the current (wrong) one.
+//
+// recomp_on_flag_change is a real declared event, fired right before any
+// flag change, passing the flag index/target state/flag type BY POINTER -
+// same safe RECOMP_CALLBACK mechanism as the redirect above, not a hook.
+// Rewriting *flag here changes what the game's own pending setFlag call
+// actually applies.
+static s16 battle_arena_reward_flag(Maps map) {
+    switch (map) {
+        case MAP_BATTLE_ARENA_BEAVER_BRAWL:
+            return 0x261;
+        case MAP_BATTLE_ARENA_KRITTER_KARNAGE:
+            return 0x262;
+        case MAP_BATTLE_ARENA_ARENA_AMBUSH:
+            return 0x263;
+        case MAP_BATTLE_ARENA_MORE_KRITTER_KARNAGE:
+            return 0x264;
+        case MAP_BATTLE_ARENA_KAMIKAZE_KREMLINGS:
+            return 0x265;
+        case MAP_BATTLE_ARENA_FOREST_FRACAS:
+            return 0x266;
+        case MAP_BATTLE_ARENA_BISH_BASH_BRAWL:
+            return 0x267;
+        case MAP_BATTLE_ARENA_PLINTH_PANIC:
+            return 0x268;
+        case MAP_BATTLE_ARENA_PINNACLE_PALAVER:
+            return 0x269;
+        case MAP_BATTLE_ARENA_SHOCKWAVE_SHOWDOWN:
+            return 0x26A;
+        default:
+            return -1;
+    }
 }
 
-// --- DIAGNOSTIC: log every cutscene played ---
-//
-// The celebration jingle plays but no Golden Banana appears after winning
-// a redirected challenge - that smells like a reward-reveal cutscene
-// running with the wrong (or an empty) script, since we redirect before
-// the original barrel's own outro-cutscene call (which never runs) and
-// Beaver Bother's own win logic isn't decompiled either. This logs which
-// cutscene index actually plays via recomp_on_cutscene_play - another real
-// declared event (passes the cutscene index and bitfield by pointer, same
-// safe RECOMP_CALLBACK mechanism, not a hook).
-RECOMP_CALLBACK("*", recomp_on_cutscene_play) void log_cutscene_play(s16 *cutscene, u8 *cutscene_bitfield) {
-    recomp_printf("[MinigameReset] cutscene_play: cutscene=%d bitfield=%d (original_target_map=%d, current_map=%d)\n",
-        (int)*cutscene, (int)*cutscene_bitfield, (int)g_original_target_map, (int)current_map);
+RECOMP_CALLBACK("*", recomp_on_flag_change) void fix_battle_arena_reward_flag(s16 *flag, u8 *target_state, u8 *flag_type) {
+    if (*flag == -1 && *target_state != 0 && *flag_type == FLAG_TYPE_PERMANENT) {
+        s16 real_flag = battle_arena_reward_flag(g_original_target_map);
+        if (real_flag != -1) {
+            recomp_printf("[MinigameReset] correcting reward flag -1 -> %d for original_target_map=%d\n",
+                (int)real_flag, (int)g_original_target_map);
+            *flag = real_flag;
+        }
+    }
 }
