@@ -3,49 +3,51 @@
 #include "common_structs.h"
 #include "minigame_int.h"
 
-// Hold L + R + Z together to force a minigame reset at any point during play.
-#define RESET_COMBO (L_TRIG | R_TRIG | Z_TRIG)
-
-extern OSContPad *D_global_asm_807ECDEC;
-
-static int reset_combo_pressed(void) {
-    static int was_held = 0;
-    int held = D_global_asm_807ECDEC != NULL && (D_global_asm_807ECDEC->button & RESET_COMBO) == RESET_COMBO;
-    int pressed = held && !was_held;
-    was_held = held;
-    return pressed;
-}
-
 // --- Jetpac (arcade minigame in Cranky's Lab) ---
 //
-// Bisection build: this is the ONLY hook in this branch, to isolate whether
-// DK64 Recompiled's mod loader can handle this specific hook in isolation.
-// See the `full-mod` branch for the complete mod (bonus barrels, Minecart
-// Mayhem, countdown, win combo) - main is deliberately minimal right now
-// while tracking down a startup crash. Add minigames back one at a time
-// from full-mod once each is confirmed not to trigger the crash.
+// func_jetpac_80025368 is the per-round-end dispatcher, called once when a
+// player dies. Full RECOMP_PATCH reimplementation of the original logic
+// (see dk64_decomp src/jetpac/code_0.c), changed in exactly one place: when
+// the original would end the game for good (state 5, "game over" - no
+// lives left and not already in the game-over state), this instead
+// respawns the player (state 2) the same way the surrounding code already
+// does for every other "still has lives" case. The two-player switching
+// logic is untouched.
 //
-// Opaque - never dereferenced, only needed to match func_jetpac_80025368's
-// real parameter type for the entry hook below.
-typedef struct JetpacCompetitor JetpacCompetitor;
+// RECOMP_HOOK/RECOMP_HOOK_RETURN were tried first but caused
+// non-deterministic memory corruption in this game's runtime (crashes at
+// different points across identical runs - see project memory). RECOMP_PATCH
+// is the only mechanism confirmed reliable here, matching what DK64
+// Recompiled's own developers and the JetPacInfiniteLives sibling mod both
+// use exclusively. This patches a different function than
+// JetPacInfiniteLives (func_jetpac_80025368 here vs func_jetpac_80026A3C
+// there), so the two mods don't conflict if both are enabled.
+RECOMP_PATCH void func_jetpac_80025368(Competitor *arg0) {
+    s32 other_player_index;
+    Competitor *other_player;
 
-// func_jetpac_80025368 is the per-round-end dispatcher: it decides whether
-// to end the game (state 5), respawn the current player (state 2), or
-// return to the title (state 0) based on remaining lives.
-//
-// TEMPORARY: using RECOMP_HOOK (entry, before the original body) here
-// instead of RECOMP_HOOK_RETURN, to test whether RECOMP_HOOK_RETURN
-// specifically is what the mod loader can't handle - DK64 Recompiled's own
-// base-game patches never use RECOMP_HOOK/RECOMP_HOOK_RETURN at all, only
-// RECOMP_PATCH, so this is unproven territory. This changes behavior
-// slightly (our check now runs before the dispatcher decides the outcome,
-// so a very unlucky same-frame race is possible), acceptable for this
-// isolation test.
-// TEST: body deliberately does nothing but read a value - no call into any
-// other game function - to isolate whether the hook merely FIRING at
-// runtime (when the player dies) is what crashes, or specifically calling
-// func_jetpac_80024F9C from inside it.
-RECOMP_HOOK("func_jetpac_80025368") void jetpac_round_end_reset_hook(JetpacCompetitor *arg0) {
-    (void)arg0;
-    (void)reset_combo_pressed();
+    other_player_index = D_jetpac_8002EC30.player_index ^ 1;
+    other_player = &D_jetpac_8002EC30.player[other_player_index];
+    if ((arg0->lives < 0) && (D_jetpac_8002EC30.unk78C != 5)) {
+        if (D_jetpac_8002EC30.unk18 < arg0->current_score) {
+            D_jetpac_8002EC30.unk18 = arg0->current_score;
+            func_jetpac_80024A4C();
+        }
+        func_jetpac_80024F9C(2); // was 5 (game over) - auto-reset: respawn instead
+    } else {
+        if (other_player->lives >= 0) {
+            D_jetpac_8002EC30.player_index = other_player_index;
+            if (other_player->level < 0) {
+                func_jetpac_800250A0();
+            } else {
+                func_jetpac_80024F9C(2);
+            }
+        } else {
+            if (arg0->lives >= 0) {
+                func_jetpac_80024F9C(2);
+            } else {
+                func_jetpac_80024F9C(0);
+            }
+        }
+    }
 }
