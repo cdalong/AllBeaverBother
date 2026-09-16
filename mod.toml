@@ -2,8 +2,8 @@
 id = "minigame_reset"
 version = "1.0.0"
 display_name = "Minigame Reset"
-description = "Jetpac never really ends - a game over auto-respawns you instead"
-short_description = "Jetpac auto-respawns instead of ending the game"
+description = "Every bonus barrel, Jetpac, animal race, and Minecart Mayhem becomes Beaver Bother instead"
+short_description = "All minigames become Beaver Bother"
 authors = [ "cdalong" ]
 game_id = "dk64"
 minimum_recomp_version = "1.0.0"

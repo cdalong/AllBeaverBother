@@ -1,7 +1,10 @@
 # Minigame Reset
 
-Jetpac (Cranky's Lab) never really ends: when you'd normally see "GAME OVER", this respawns you
-instead, so a run only stops when you decide to leave.
+Every bonus barrel, Jetpac, animal race, and Minecart Mayhem attempt loads Beaver Bother instead.
+
+**This is a joke mod, not a completionist tool.** Since the real minigame you tried to enter never
+actually loads, winning only ever completes Beaver Bother - not whatever Golden Banana/crown/coin
+the thing you actually walked into would have granted. See [Known Limitations](#known-limitations).
 
 ## Installation
 
@@ -41,59 +44,74 @@ You can also output directly to your mods folder instead of using `build.sh`:
 
 ## How It Works
 
-`func_jetpac_80025368` is the per-round-end dispatcher, called once each time a player dies. It's
-fully replaced with `RECOMP_PATCH`, reimplementing the original logic (see `dk64_decomp`
-`src/jetpac/code_0.c`) unchanged except in one place: where the original would end the game for
-good (state 5 - no lives left, not already game-over), this instead respawns the player (state 2)
-the same way the surrounding code already does for every other "still has lives" case. The
-two-player switching logic is untouched.
+A map transition is requested elsewhere in the game by writing the global `next_map` and setting a
+countdown (`D_global_asm_8076A0B2 = 3`, see `func_global_asm_805FF378` in `dk64_decomp`
+`src/global_asm/code_3C10.c`); the countdown decrements once per frame and the transition actually
+completes - loading the new map's real room and actors - when it reaches 0. That leaves a ~3 frame
+window, every frame, where a pending transition's target can still be swapped before the real load
+happens.
 
-This patches a **different** function than the separate `infinite_jetpac_lives` mod
-(`func_jetpac_80026A3C`, the death-timer handler, vs `func_jetpac_80025368` here), so the two
-don't conflict if both happen to be enabled - they just produce a similar effect via different
-means.
+This mod subscribes to `dk64recomp_every_frame` - a real event the base game declares and fires
+itself every frame (see `patches/boot_logos_patches.c` in the upstream
+Rainchus/Donkey-Kong-64-Recompiled repo) - via `RECOMP_CALLBACK("*", dk64recomp_every_frame)`. Each
+frame, if a transition is pending and its target is one of the minigame maps below, the target gets
+overwritten to `MAP_BEAVER_BOTHER_EASY` before the load happens - so the room and actors that
+actually get loaded are Beaver Bother's own, not just a `current_map` value lied about over the
+wrong room.
 
-### Why RECOMP_PATCH and not a hook
+Covered maps: every K.Rool barrel challenge, Batty Barrel Bandit, Kremling Kosh, Rambi/Enguarde
+Arena, Jetpac, the animal races (both beetle races, both car races, the seal race), and all three
+Minecart Mayhem difficulties.
+
+**Not covered on purpose:** the multiplayer Battle Arena and Kong Battle Arena maps (not reachable
+the same way in single-player, untested), and `MAP_KROOLS_ARENA` (the final boss fight room -
+redirecting that would likely make the game unbeatable).
+
+### Why RECOMP_CALLBACK and not a hook or a patch
 
 Earlier versions of this mod used `RECOMP_HOOK`/`RECOMP_HOOK_RETURN` to extend several minigames
-(Jetpac, bonus barrels, Minecart Mayhem) with a manual reset combo, an instant-win combo, and a
-countdown overlay, without needing to fully reimplement any game logic. In testing, both hook
-mechanisms turned out to be unreliable in this game's actual runtime build:
+with a manual reset combo, an instant-win combo, and a countdown overlay, without needing to fully
+reimplement any game logic. In testing, both hook mechanisms turned out to be unreliable in this
+game's actual runtime build:
 
-- `RECOMP_HOOK_RETURN` reliably crashed the game while loading the mod, for any function, even
-  ones the base game doesn't otherwise touch.
+- `RECOMP_HOOK_RETURN` reliably crashed the game while loading the mod, for any function - tested
+  on two unrelated functions, both crashed.
 - `RECOMP_HOOK` (entry) avoided that specific crash, but further testing showed the identical
   compiled mod crashing at different, inconsistent points across repeated launches (mod load,
   entering a minigame, or dying) - the signature of memory corruption, not a deterministic bug.
-  With zero mods enabled, or with only `RECOMP_PATCH`-based mods, the game was completely stable.
 
 This is consistent with the fact that DK64 Recompiled's own developers never use `RECOMP_HOOK` or
-`RECOMP_HOOK_RETURN` anywhere in their own built-in patches - only `RECOMP_PATCH`. That mechanism
-was confirmed reliable through extensive testing, so this mod now uses it exclusively, and the
-manual reset combo, win combo, and countdown were removed rather than shipped on a foundation that
-doesn't hold up.
+`RECOMP_HOOK_RETURN` anywhere in their own built-in patches - only `RECOMP_PATCH`. An earlier
+version of this mod used `RECOMP_PATCH` instead (fully reimplementing Jetpac's round-end dispatcher
+to auto-respawn on game over), which was reliable but meant every feature needed its own large,
+fully-reimplemented function, and auto-reset for bonus barrels/Minecart Mayhem wasn't safely
+achievable that way (their fail path doesn't have a small, isolated interception point the way
+Jetpac's did).
+
+`RECOMP_CALLBACK` turned out to be a third, different mechanism: it subscribes to an event the game
+already declares and fires itself, implemented in the runtime as a plain list of function pointers
+the game calls directly - not the same trampoline/code-regeneration machinery hooks use. It worked
+reliably in testing, which is what made this mod's current approach possible without reimplementing
+any large minigame function at all.
 
 ## Project Layout
 
 | Path | Description |
 |---|---|
-| `src/main.c` | The Jetpac patch |
-| `include/minigame_int.h` | Minimal `Competitor`/`JetpacGameStruct` definitions |
+| `src/main.c` | The map-redirect callback |
 | `mod.toml` | Mod metadata and packaging config |
 | `Dk64Syms/` | DK64 symbol tables used by RecompModTool |
 | `dk64_decomp/` | DK64 decomp headers used during compilation |
 
 ## Known Limitations
 
-- **Only Jetpac is covered.** The original goal included auto-reset for bonus barrel minigames and
-  Minecart Mayhem too, but their fail path doesn't have a Jetpac-style clean interception point:
-  the small function that shows the fail message isn't what triggers the outro cutscene or
-  actually restarts the minigame - the *caller* (a large, per-frame state-machine function) does
-  that unconditionally right afterward, regardless of what the small function does. Achieving
-  auto-reset there safely would mean either fully reimplementing that large function as a
-  `RECOMP_PATCH` (high effort, high risk of subtly wrong behavior) or finding a smaller,
-  Jetpac-like interception point earlier in the chain (not yet found). Left out rather than
-  shipped as a hook-based feature known to be unreliable.
-- No manual reset combo, no instant-win combo, no "3, 2, 1, GO!" countdown - see above for why.
-- Built and reviewed against the decomp source and tested in-game on the specific crash this
-  README describes; please report any other issues.
+- **Golden Bananas, crowns, and the Rareware Coin cannot be earned from a redirected minigame**
+  while this mod is enabled. Completing Beaver Bother only ever grants whatever Beaver Bother
+  itself grants (if anything) - it does not know or care which real challenge you originally tried
+  to enter, and DK64's collectible flags for these challenges appear to be tied to level-placement
+  data on the specific barrel/actor instance, not to the map type, so there's no way found so far to
+  look up and separately grant "what you would have earned." Don't use this mod on a save you care
+  about 100%-ing.
+- Beetle Race, Car Race, and Seal Race redirect the map transition but haven't been individually
+  tested in-game.
+- Built and reviewed against the decomp source; please report any issues.
