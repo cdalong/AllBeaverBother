@@ -136,23 +136,13 @@ static s16 battle_arena_reward_flag(Maps map) {
     }
 }
 
+// TEMPORARY: observe only, no mutation - isolating whether writing to
+// *flag (the actual fix) is itself causing a problem, since the very
+// first log line here stopped appearing once the write was added.
 RECOMP_CALLBACK("*", recomp_on_flag_change) void fix_battle_arena_reward_flag(s16 *flag, u8 *target_state, u8 *flag_type) {
-    // Only log the interesting case (flag == -1, being set) - logging every
-    // flag change generated enough volume that journald's rate limiting
-    // silently dropped some lines, including ones we needed. This should
-    // fire rarely enough to always get through.
     if (*flag != -1) {
         return;
     }
     recomp_printf("[MinigameReset] flag_change: flag=-1 target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
         (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
-
-    if (*target_state != 0 && *flag_type == FLAG_TYPE_PERMANENT) {
-        s16 real_flag = battle_arena_reward_flag(g_original_target_map);
-        if (real_flag != -1) {
-            recomp_printf("[MinigameReset] correcting reward flag -1 -> %d for original_target_map=%d\n",
-                (int)real_flag, (int)g_original_target_map);
-            *flag = real_flag;
-        }
-    }
 }
