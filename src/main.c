@@ -136,13 +136,15 @@ static s16 battle_arena_reward_flag(Maps map) {
     }
 }
 
-// TEMPORARY: observe only, no mutation - isolating whether writing to
-// *flag (the actual fix) is itself causing a problem, since the very
-// first log line here stopped appearing once the write was added.
+// TEMPORARY: observe only, no mutation, and no early `return;` mid-function
+// (single fall-through exit only, matching the shape of the
+// dk64recomp_every_frame callback that's still working) - isolating
+// whether an explicit early return is itself what breaks this specific
+// callback, since that's the main structural difference from the version
+// that worked.
 RECOMP_CALLBACK("*", recomp_on_flag_change) void fix_battle_arena_reward_flag(s16 *flag, u8 *target_state, u8 *flag_type) {
-    if (*flag != -1) {
-        return;
+    if (*flag == -1) {
+        recomp_printf("[MinigameReset] flag_change: flag=-1 target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
+            (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
     }
-    recomp_printf("[MinigameReset] flag_change: flag=-1 target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
-        (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
 }
