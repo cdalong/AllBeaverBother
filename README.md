@@ -162,13 +162,22 @@ countdown on every frame it's held.
   high-confidence, but the reset target (`unk34 = 1`) is a best-effort guess, not a confirmed
   value — see [Castle Car Race (experimental)](#castle-car-race-experimental). If it misbehaves
   (race doesn't restart properly, camera/controls end up in a weird state), please report it.
-- Other Animal Races (beetle, seal, Frantic Factory car race) are not covered yet. Gloomy Galleon
-  Seal Race looks like the next-safest candidate to add — it's the only other race file confirmed
-  to reset its own stage counter as part of the same init block as the bit-`0x10` check. Beetle
-  Race and Frantic Factory Car Race carry a real risk that a reset would leave stale race-stage
-  state behind (their stage counter isn't assigned anywhere in the file that reads it, meaning it's
-  set once elsewhere and untouched by the bit-`0x10` trick), so they need more investigation before
-  being wired up.
+- Other Animal Races (beetle, seal, Frantic Factory car race) are not covered yet.
+  - **Gloomy Galleon Seal Race was investigated and deliberately skipped.** It first looked like
+    the safest next candidate (its stage counter, unlike Beetle/Factory, does get reset by the
+    same init block the bit-`0x10` trick reruns). But that same init block also unconditionally
+    replays the intro cutscene and repositions the actor every time it reruns — unlike Castle,
+    Seal Race's cutscene isn't gated behind a one-time flag, so the standard reset trick would
+    bring the cutscene *back*, defeating the point of the mod. A more surgical fix (reset the
+    stage fields directly, skip bit-`0x10` entirely) avoids the cutscene, but doing a *complete*
+    reset also means repositioning the seal to the start line, which depends on globals the DK64
+    decomp project's own headers mark as `// TODO: What is this datatype?` — unlike Castle's
+    single guessed value, this is a real crash-risk-level unknown (wrong struct layout, not just
+    wrong stage number), so it was left out rather than shipped.
+  - Beetle Race and Frantic Factory Car Race carry a similar-in-spirit but distinct risk: their
+    stage counter isn't assigned anywhere in the file that reads it, meaning it's set once
+    elsewhere and untouched by the bit-`0x10` trick, so a reset would likely leave stale
+    race-stage state behind. Not investigated as deeply as Seal Race yet.
 - The countdown's ~1 second-per-step pacing is a rough estimate of the game's logic tick rate, not
   a confirmed value — it may run faster or slower in practice.
 - The manual combo reset doesn't check whether a minigame is mid win/fail transition when pressed;
