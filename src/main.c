@@ -137,6 +137,11 @@ static s16 battle_arena_reward_flag(Maps map) {
 }
 
 RECOMP_CALLBACK("*", recomp_on_flag_change) void fix_battle_arena_reward_flag(s16 *flag, u8 *target_state, u8 *flag_type) {
+    // Logged unconditionally (not just on match) so a test run gives full
+    // data even if the fix's condition doesn't hit the way we expect.
+    recomp_printf("[MinigameReset] flag_change: flag=%d target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
+        (int)*flag, (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
+
     if (*flag == -1 && *target_state != 0 && *flag_type == FLAG_TYPE_PERMANENT) {
         s16 real_flag = battle_arena_reward_flag(g_original_target_map);
         if (real_flag != -1) {
@@ -145,4 +150,9 @@ RECOMP_CALLBACK("*", recomp_on_flag_change) void fix_battle_arena_reward_flag(s1
             *flag = real_flag;
         }
     }
+}
+
+RECOMP_CALLBACK("*", recomp_on_cutscene_play) void log_cutscene_play(s16 *cutscene, u8 *cutscene_bitfield) {
+    recomp_printf("[MinigameReset] cutscene_play: cutscene=%d bitfield=%d (original_target_map=%d, current_map=%d)\n",
+        (int)*cutscene, (int)*cutscene_bitfield, (int)g_original_target_map, (int)current_map);
 }
