@@ -13,3 +13,4 @@ elf_path = "build/mod.elf"
 mod_filename = "minigame_reset"
 func_reference_syms_file = "Dk64Syms/dump.toml"
 data_reference_syms_files = [ "Dk64Syms/data_dump.toml" ]
+additional_files = ["thumb.dds"]
