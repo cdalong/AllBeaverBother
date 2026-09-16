@@ -1,6 +1,7 @@
 # Minigame Reset
 
-Every bonus barrel, Jetpac, animal race, and Minecart Mayhem attempt loads Beaver Bother instead.
+Every bonus barrel, Jetpac, animal race, Minecart Mayhem, and single-player Battle Arena attempt
+loads Beaver Bother instead.
 
 **This is a joke mod, not a completionist tool.** Since the real minigame you tried to enter never
 actually loads, winning only ever completes Beaver Bother - not whatever Golden Banana/crown/coin
@@ -60,12 +61,14 @@ actually get loaded are Beaver Bother's own, not just a `current_map` value lied
 wrong room.
 
 Covered maps: every K.Rool barrel challenge, Batty Barrel Bandit, Kremling Kosh, Rambi/Enguarde
-Arena, Jetpac, the animal races (both beetle races, both car races, the seal race), and all three
-Minecart Mayhem difficulties.
+Arena, Jetpac, the animal races (both beetle races, both car races, the seal race), all three
+Minecart Mayhem difficulties, and all ten single-player Battle Arenas (Beaver Brawl, Kritter
+Karnage, Arena Ambush, More Kritter Karnage, Forest Fracas, Bish Bash Brawl, Kamikaze Kremlings,
+Plinth Panic, Pinnacle Palaver, Shockwave Showdown).
 
-**Not covered on purpose:** the multiplayer Battle Arena and Kong Battle Arena maps (not reachable
-the same way in single-player, untested), and `MAP_KROOLS_ARENA` (the final boss fight room -
-redirecting that would likely make the game unbeatable).
+**Not covered on purpose:** the Kong Battle Arena maps (multiplayer-specific, untested), and
+`MAP_KROOLS_ARENA` (the final boss fight room - redirecting that would likely make the game
+unbeatable).
 
 ### Why RECOMP_CALLBACK and not a hook or a patch
 

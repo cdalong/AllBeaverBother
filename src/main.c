@@ -59,6 +59,17 @@ static int is_redirect_target_map(Maps map) {
         case MAP_MINECART_MAYHEM_EASY:
         case MAP_MINECART_MAYHEM_NORMAL:
         case MAP_MINECART_MAYHEM_HARD:
+        // Battle Arenas (single-player)
+        case MAP_BATTLE_ARENA_BEAVER_BRAWL:
+        case MAP_BATTLE_ARENA_KRITTER_KARNAGE:
+        case MAP_BATTLE_ARENA_ARENA_AMBUSH:
+        case MAP_BATTLE_ARENA_MORE_KRITTER_KARNAGE:
+        case MAP_BATTLE_ARENA_FOREST_FRACAS:
+        case MAP_BATTLE_ARENA_BISH_BASH_BRAWL:
+        case MAP_BATTLE_ARENA_KAMIKAZE_KREMLINGS:
+        case MAP_BATTLE_ARENA_PLINTH_PANIC:
+        case MAP_BATTLE_ARENA_PINNACLE_PALAVER:
+        case MAP_BATTLE_ARENA_SHOCKWAVE_SHOWDOWN:
             return 1;
         default:
             return 0;
