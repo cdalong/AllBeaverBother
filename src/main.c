@@ -61,6 +61,7 @@ static void reset_minigame_actor(MinigameActor *actor) {
 
 static MinigameActor *g_countdown_actor = NULL;
 static s32 g_countdown_frames_remaining = 0;
+static int g_countdown_is_race = 0;
 
 static const char *countdown_text(s32 frames_remaining) {
     s32 step = (frames_remaining - 1) / COUNTDOWN_FRAMES_PER_STEP; // 3, 2, 1, 0
@@ -94,6 +95,21 @@ static void countdown_start(void) {
     }
     g_countdown_actor = gCurrentActorPointer;
     g_countdown_frames_remaining = COUNTDOWN_TOTAL_FRAMES;
+    g_countdown_is_race = 0;
+}
+
+// Animal races (see RaceActorExtra) keep their own outer stage counter at
+// unk178, separate from the actor's own control_state, so the standard
+// bit-0x10 reset alone would leave the race stuck on its results/fail
+// screen instead of back at the start line. This starts the same countdown
+// but additionally drives that stage counter back to 1 ("get ready"
+// sequence) once it elapses - see castle_car_race_reset_hook for why that
+// value specifically.
+static void countdown_start_race(void) {
+    countdown_start();
+    if (g_countdown_actor != NULL) {
+        g_countdown_is_race = 1;
+    }
 }
 
 // Call once per frame from every hooked minigame's per-frame update
@@ -107,7 +123,15 @@ static void countdown_tick(void) {
     g_countdown_frames_remaining--;
     if (g_countdown_frames_remaining == 0) {
         reset_minigame_actor(g_countdown_actor);
+        if (g_countdown_is_race && g_countdown_actor != NULL) {
+            RaceActorExtra *race = (RaceActorExtra *)g_countdown_actor->unk178;
+            if (race != NULL) {
+                race->unk34 = 1;
+                race->unk35 = 0;
+            }
+        }
         g_countdown_actor = NULL;
+        g_countdown_is_race = 0;
     }
 }
 
@@ -117,6 +141,14 @@ static void minigame_reset_tick(void) {
     countdown_tick();
     if (reset_combo_pressed()) {
         countdown_start();
+    }
+}
+
+// Same as minigame_reset_tick, for animal races - see countdown_start_race.
+static void race_reset_tick(void) {
+    countdown_tick();
+    if (reset_combo_pressed()) {
+        countdown_start_race();
     }
 }
 
@@ -188,4 +220,53 @@ RECOMP_HOOK_RETURN("func_minecart_800240DC") void minecart_fail_reset_hook(void)
 
 RECOMP_HOOK("func_minecart_80024FD0") void minecart_manual_reset_hook(void) {
     minigame_reset_tick();
+}
+
+// --- Castle Car Race (EXPERIMENTAL - see README) ---
+//
+// Unlike the bonus barrels/minecart, an animal race's progress lives in a
+// separate struct at the actor's unk178 (RaceActorExtra), not in the
+// actor's own control_state - so on top of the usual bit-0x10 reset, a
+// race reset also has to drive that struct's own stage counter (unk34)
+// back to a sane value itself. See countdown_start_race/countdown_tick.
+//
+// Fail detection: func_race_8002B76C runs the post-race results sequence
+// via a sub-step counter (unk35) advancing once per real game frame, one
+// step at a time - except at the exact moment the win/fail decision is
+// made (sub-step 3): a win advances it by 1 (to 4, where it then waits for
+// a button press), but a fail advances it by 2 in that same tick (straight
+// to 5), because the fail branch increments it once itself before the
+// shared increment at the end of the switch case also runs. So "unk35 was
+// 3 last frame and is 5 now" is a fail, unambiguously - it's the only way
+// to reach 5 without passing through (and pausing on) 4 first.
+//
+// Reset target: unk34 = 1 replays the race's own "get ready" sequence
+// (func_race_8002B518), which is the only stage value confirmed to be
+// something the outer dispatch (func_race_8002B964) explicitly handles
+// rather than falling through to undefined behavior - chosen specifically
+// to fail safe if this guess is imperfect, rather than something more
+// specific to "resume racing" that would need reading un-decompiled
+// assembly (func_race_8002B180) to confirm.
+//
+// reset_minigame_actor also clears unk11C on this actor as it does for the
+// other minigames; whether the race actor's unk11C plays the same
+// "companion timer" role here is unconfirmed - if it's unrelated, this is
+// a harmless no-op (or a stray one-time re-init on whatever it points to).
+RECOMP_HOOK_RETURN("func_race_8002B76C") void castle_car_race_fail_reset_hook(void) {
+    static u8 prev_unk35 = 0xFF;
+    if (gCurrentActorPointer == NULL) {
+        return;
+    }
+    RaceActorExtra *race = (RaceActorExtra *)gCurrentActorPointer->unk178;
+    if (race == NULL) {
+        return;
+    }
+    if (prev_unk35 == 3 && race->unk35 == 5) {
+        countdown_start_race();
+    }
+    prev_unk35 = race->unk35;
+}
+
+RECOMP_HOOK("func_race_8002B964") void castle_car_race_manual_reset_hook(void) {
+    race_reset_tick();
 }

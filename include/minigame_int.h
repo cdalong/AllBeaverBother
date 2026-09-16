@@ -15,6 +15,20 @@ struct MinigameActor {
     u8 pad120[0x154 - 0x120];
     u8 control_state;               // at 0x154
     u8 control_state_progress;      // at 0x155
+    u8 pad156[0x178 - 0x156];
+    void *unk178;                   // at 0x178 - per-minigame-type extra data pointer (see RaceActorExtra)
+};
+
+// Minimal mirror of the real `RaceAdditionalActorData` struct (see
+// dk64_decomp include/structs.h), only for animal races: pointed to by an
+// Actor's `unk178`. unk34 is the race's outer stage (0 intro, 1 pre-race
+// "get ready" sequence, ~2-3 actively racing, 4 GB-flag check, 5 results),
+// unk35 is a per-stage sub-step used only while showing results.
+typedef struct RaceActorExtra RaceActorExtra;
+struct RaceActorExtra {
+    u8 pad0[0x34];
+    u8 unk34;
+    u8 unk35;
 };
 
 extern MinigameActor *gCurrentActorPointer;
