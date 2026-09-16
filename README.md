@@ -3,8 +3,8 @@
 Lets you instantly reset a DK64 minigame — automatically on failure, or on demand with a button
 combo — instead of sitting through the fail text and outro cutscene.
 
-Covers Jetpac (Cranky's Lab) and every banana barrel bonus minigame (K.Rool barrel challenges,
-Batty Barrel Bandit, Kremling Kosh, Rambi Arena).
+Covers Jetpac (Cranky's Lab), every banana barrel bonus minigame (K.Rool barrel challenges,
+Batty Barrel Bandit, Kremling Kosh, Rambi Arena), and Minecart Mayhem.
 
 ## Installation
 
@@ -18,8 +18,8 @@ Batty Barrel Bandit, Kremling Kosh, Rambi Arena).
 
 Hold **L + R + Z** together during a minigame to reset it immediately.
 
-Failing a bonus barrel minigame also resets it immediately on its own — the fail text/sound and
-outro cutscene are skipped entirely.
+Failing a bonus barrel minigame or Minecart Mayhem also resets it immediately on its own — the
+fail text/sound and outro cutscene are skipped entirely.
 
 ## Building from Source
 
@@ -90,6 +90,18 @@ whether to (re)run its one-time setup. Clearing it makes the barrel replay exact
 one-time setup a fresh spawn would, in place, on the next frame — which is the cleanest available
 way to get a full reset without hand-tracking every variant's private counters/timers.
 
+### Minecart Mayhem
+
+Same architecture as the bonus barrels, just with its own function names:
+
+- `func_minecart_80024000` — win
+- `func_minecart_800240DC` — fail
+- `func_minecart_80024FD0` — per-frame ride update (covers all three difficulties via `current_map`)
+
+`RECOMP_HOOK_RETURN` on the fail function handles auto-reset; `RECOMP_HOOK` on the ride update
+function handles the manual combo reset. Both reuse the exact same `unk11C`/bit-`0x10` reset as
+the bonus barrels.
+
 ## Project Layout
 
 | Path | Description |
@@ -102,9 +114,9 @@ way to get a full reset without hand-tracking every variant's private counters/t
 
 ## Known Limitations
 
-- Race and minecart minigames (e.g. Kremling Kaos, minecart rides) use a different win/fail
-  subsystem than the bonus barrels and are not covered yet.
-- The manual combo reset doesn't check whether a barrel is mid win/fail transition when pressed;
+- Race minigames (e.g. Kremling Kaos, animal races) use a different win/fail subsystem than the
+  bonus barrels/minecart and are not covered yet.
+- The manual combo reset doesn't check whether a minigame is mid win/fail transition when pressed;
   triggering it during that window hasn't been tested.
 - Built and reviewed against the decomp source, but not yet verified in-game — please report
   issues.

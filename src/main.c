@@ -27,13 +27,19 @@ static void reset_actor(MinigameActor *actor) {
     actor->control_state_progress = 0;
 }
 
-static void reset_current_bonus_barrel(void) {
-    if (!reset_combo_held()) {
+// Resets the current actor and its companion (the unk11C actor that drives
+// fail/timer conditions for both the bonus barrels and Minecart Mayhem).
+static void reset_current_minigame_actor(void) {
+    if (gCurrentActorPointer == NULL) {
         return;
     }
     reset_actor(gCurrentActorPointer);
-    if (gCurrentActorPointer != NULL) {
-        reset_actor(gCurrentActorPointer->unk11C);
+    reset_actor(gCurrentActorPointer->unk11C);
+}
+
+static void reset_current_minigame_actor_on_combo(void) {
+    if (reset_combo_held()) {
+        reset_current_minigame_actor();
     }
 }
 
@@ -67,10 +73,7 @@ RECOMP_HOOK_RETURN("func_jetpac_80025368") void jetpac_round_end_reset_hook(void
 // - the player never sees the fail screen or outro cutscene, the barrel
 // just immediately starts over.
 RECOMP_HOOK_RETURN("func_bonus_800265C0") void bonus_barrel_fail_reset_hook(void) {
-    reset_actor(gCurrentActorPointer);
-    if (gCurrentActorPointer != NULL) {
-        reset_actor(gCurrentActorPointer->unk11C);
-    }
+    reset_current_minigame_actor();
 }
 
 // Manual combo reset: hooked at the entry of each barrel variant's own
@@ -81,17 +84,33 @@ RECOMP_HOOK_RETURN("func_bonus_800265C0") void bonus_barrel_fail_reset_hook(void
 // "was I already initialized" check to see it and rerun setup - restarting
 // the barrel instantly, mid-play, without waiting for a fail condition.
 RECOMP_HOOK("func_bonus_80024158") void bonus_barrel_manual_reset_hook_a(void) {
-    reset_current_bonus_barrel();
+    reset_current_minigame_actor_on_combo();
 }
 
 RECOMP_HOOK("func_bonus_8002570C") void bonus_barrel_manual_reset_hook_b(void) {
-    reset_current_bonus_barrel();
+    reset_current_minigame_actor_on_combo();
 }
 
 RECOMP_HOOK("func_bonus_800277F8") void bonus_barrel_manual_reset_hook_c(void) {
-    reset_current_bonus_barrel();
+    reset_current_minigame_actor_on_combo();
 }
 
 RECOMP_HOOK("func_bonus_8002D2F0") void bonus_barrel_manual_reset_hook_d(void) {
-    reset_current_bonus_barrel();
+    reset_current_minigame_actor_on_combo();
+}
+
+// --- Minecart Mayhem ---
+//
+// Same architecture as the bonus barrels: a shared win/fail pair
+// (func_minecart_80024000 win, func_minecart_800240DC fail) driven by a
+// companion actor at unk11C, and a single per-frame ride function
+// (func_minecart_80024FD0) covering all three difficulty variants via
+// current_map. The same reset_actor() trick applies unchanged.
+
+RECOMP_HOOK_RETURN("func_minecart_800240DC") void minecart_fail_reset_hook(void) {
+    reset_current_minigame_actor();
+}
+
+RECOMP_HOOK("func_minecart_80024FD0") void minecart_manual_reset_hook(void) {
+    reset_current_minigame_actor_on_combo();
 }
