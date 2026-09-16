@@ -5,8 +5,7 @@ instead of sitting through the fail text and outro cutscene. A brief "3, 2, 1, G
 before you're dropped back into the fresh attempt.
 
 Covers Jetpac (Cranky's Lab), every banana barrel bonus minigame (K.Rool barrel challenges,
-Batty Barrel Bandit, Kremling Kosh, Rambi Arena), Minecart Mayhem, and (experimentally — see
-[Known Limitations](#known-limitations)) the Creepy Castle Car Race.
+Batty Barrel Bandit, Kremling Kosh, Rambi Arena), and Minecart Mayhem.
 
 ## Installation
 
@@ -20,8 +19,7 @@ Batty Barrel Bandit, Kremling Kosh, Rambi Arena), Minecart Mayhem, and (experime
 
 Hold **L + R + Z** together during a minigame to trigger a reset.
 
-Failing a bonus barrel minigame, Minecart Mayhem, or the Castle Car Race also triggers a reset on
-its own — either way,
+Failing a bonus barrel minigame or Minecart Mayhem also triggers a reset on its own — either way,
 the fail text/sound and outro cutscene are skipped and replaced with a short "3, 2, 1, GO!"
 countdown before the minigame starts over.
 
@@ -109,24 +107,6 @@ Same architecture as the bonus barrels, just with its own function names:
 function handles the manual combo trigger and ticks the countdown every frame. Both reuse the
 exact same `unk11C`/bit-`0x10` reset as the bonus barrels.
 
-### Castle Car Race (experimental)
-
-Animal races don't work like the other minigames: a race's progress lives in its own struct
-(`RaceActorExtra`, pointed to by the actor's `unk178`) rather than in the actor's `control_state`,
-so the standard bit-`0x10` reset alone isn't enough — it resets the actor but leaves the race
-itself stuck on whatever stage (results/fail screen) it was on.
-
-- **Fail detection** hooks `func_race_8002B76C` (the results sequence) with `RECOMP_HOOK_RETURN`,
-  watching its `unk35` sub-step counter. A win advances it by 1 on the decision frame; a fail
-  advances it by 2 in that same frame (the fail branch increments it once itself, on top of the
-  shared increment every case gets) — so "was 3 last frame, is 5 now" is an unambiguous fail
-  signal, distinct from a win (which always passes through 4 first).
-- **Reset** additionally sets `RaceActorExtra.unk34 = 1`, replaying the race's own "get ready"
-  sequence. This value is a **best-effort guess** — it's the only stage the outer dispatch
-  (`func_race_8002B964`) explicitly handles that plausibly means "back to the start line" without
-  needing to read `func_race_8002B180`'s un-decompiled assembly (which is where the real
-  finish-line/stage-transition logic lives). See [Known Limitations](#known-limitations).
-
 ### The countdown
 
 Reset doesn't happen instantly — it queues a ~4 second "3, 2, 1, GO!" countdown (`main.c`'s
@@ -151,33 +131,32 @@ countdown on every frame it's held.
 | Path | Description |
 |---|---|
 | `src/main.c` | Hook implementations |
-| `include/minigame_int.h` | Minimal Actor/race struct definitions |
+| `include/minigame_int.h` | Minimal Actor struct definitions |
 | `mod.toml` | Mod metadata and packaging config |
 | `Dk64Syms/` | DK64 symbol tables used by RecompModTool |
 | `dk64_decomp/` | DK64 decomp headers used during compilation |
 
 ## Known Limitations
 
-- **Castle Car Race support is experimental and unverified in-game.** The fail-detection logic is
-  high-confidence, but the reset target (`unk34 = 1`) is a best-effort guess, not a confirmed
-  value — see [Castle Car Race (experimental)](#castle-car-race-experimental). If it misbehaves
-  (race doesn't restart properly, camera/controls end up in a weird state), please report it.
-- Other Animal Races (beetle, seal, Frantic Factory car race) are not covered yet.
-  - **Gloomy Galleon Seal Race was investigated and deliberately skipped.** It first looked like
-    the safest next candidate (its stage counter, unlike Beetle/Factory, does get reset by the
-    same init block the bit-`0x10` trick reruns). But that same init block also unconditionally
-    replays the intro cutscene and repositions the actor every time it reruns — unlike Castle,
-    Seal Race's cutscene isn't gated behind a one-time flag, so the standard reset trick would
-    bring the cutscene *back*, defeating the point of the mod. A more surgical fix (reset the
-    stage fields directly, skip bit-`0x10` entirely) avoids the cutscene, but doing a *complete*
-    reset also means repositioning the seal to the start line, which depends on globals the DK64
-    decomp project's own headers mark as `// TODO: What is this datatype?` — unlike Castle's
-    single guessed value, this is a real crash-risk-level unknown (wrong struct layout, not just
-    wrong stage number), so it was left out rather than shipped.
-  - Beetle Race and Frantic Factory Car Race carry a similar-in-spirit but distinct risk: their
-    stage counter isn't assigned anywhere in the file that reads it, meaning it's set once
-    elsewhere and untouched by the bit-`0x10` trick, so a reset would likely leave stale
-    race-stage state behind. Not investigated as deeply as Seal Race yet.
+- **No Animal Races are covered** (Castle Car Race, Gloomy Galleon Seal Race, Beetle Race, Frantic
+  Factory Car Race). Unlike the bonus barrels/minecart, they don't have a shared win/fail
+  chokepoint or a stage counter cleanly reset by the bit-`0x10` trick, and each was investigated
+  and found to carry a real risk that outweighed shipping it:
+  - **Castle Car Race** was implemented and later removed. Its fail detection was solid, but the
+    reset target depended on a best-effort guess (the real finish-line/stage-transition logic
+    lives in un-decompiled assembly), and it was pulled rather than keep shipping an unverified
+    guess.
+  - **Gloomy Galleon Seal Race** looked like the next-safest candidate (its stage counter, unlike
+    Beetle/Factory, does get reset by the same init block the bit-`0x10` trick reruns) — but that
+    same init block also unconditionally replays the intro cutscene every time it reruns, and a
+    *complete* reset would also need repositioning logic built on globals the DK64 decomp
+    project's own headers mark as `// TODO: What is this datatype?` — a real crash risk, not just
+    a cosmetic one. Left out.
+  - **Beetle Race and Frantic Factory Car Race** are worse still: their stage counter isn't
+    assigned anywhere in the files that read it — not even in an un-matched reference translation
+    like Castle/Seal had — so there's no concrete basis for a reset target at all, just contextual
+    inference. Factory Car Race's win/fail decision doesn't even appear to live in the same file
+    as its main per-frame logic.
 - The countdown's ~1 second-per-step pacing is a rough estimate of the game's logic tick rate, not
   a confirmed value — it may run faster or slower in practice.
 - The manual combo reset doesn't check whether a minigame is mid win/fail transition when pressed;
