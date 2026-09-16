@@ -135,9 +135,29 @@ static void trace_dump(void) {
     g_trace_count = 0;
 }
 
+// --- Extra checkpoints ---
+//
+// Added to pin down exactly how far the pipeline gets on a given attempt,
+// separate from the trace dump's contents: is the mod loaded at all, does
+// the redirect itself fire, does the "just left Beaver Bother" edge get
+// detected, and does dk64recomp_every_frame keep firing continuously
+// through a whole session (a periodic heartbeat, since prior tests showed
+// output that stopped appearing entirely with no explanation).
+RECOMP_CALLBACK("*", recomp_on_init) void log_mod_loaded(void) {
+    recomp_printf("[MinigameReset] mod loaded\n");
+}
+
+static u32 g_frame_counter = 0;
+
 RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_bother(void) {
+    g_frame_counter++;
+    if ((g_frame_counter % 300) == 0) {
+        recomp_printf("[MinigameReset] heartbeat: frame=%u current_map=%d\n", g_frame_counter, (int)current_map);
+    }
+
     if (D_global_asm_8076A0B2 != 0 && is_redirect_target_map(next_map)) {
         g_original_target_map = next_map;
+        recomp_printf("[MinigameReset] redirect triggered: original_target_map=%d\n", (int)g_original_target_map);
         next_map = MAP_BEAVER_BOTHER_EASY;
     }
 
@@ -147,6 +167,7 @@ RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_
         // Just left Beaver Bother - dump whatever the trace collected
         // during that whole attempt.
         g_was_in_beaver_bother = 0;
+        recomp_printf("[MinigameReset] left Beaver Bother, dumping trace\n");
         trace_dump();
     }
 }
