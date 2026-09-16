@@ -5,21 +5,42 @@
 
 // Hold L + R + Z together to force a minigame reset at any point during play.
 #define RESET_COMBO (L_TRIG | R_TRIG | Z_TRIG)
+// Hold L + R + C-Up together to instantly win a minigame. Not L+R+Start:
+// Start always opens the pause menu regardless of what else is held, so it
+// would fire at the same time as pausing the game.
+#define WIN_COMBO (L_TRIG | R_TRIG | U_CBUTTONS)
 
 extern OSContPad *D_global_asm_807ECDEC;
 
-static int reset_combo_held(void) {
-    return D_global_asm_807ECDEC != NULL && (D_global_asm_807ECDEC->button & RESET_COMBO) == RESET_COMBO;
+// `exclude` keeps RESET_COMBO and WIN_COMBO mutually exclusive - they share
+// L+R and differ only in Z vs C-Up, so holding all four at once would
+// otherwise satisfy both simultaneously.
+static int combo_held(u16 combo, u16 exclude) {
+    if (D_global_asm_807ECDEC == NULL) {
+        return 0;
+    }
+    u16 button = D_global_asm_807ECDEC->button;
+    return (button & combo) == combo && (button & exclude) == 0;
 }
 
-// Edge-triggered: true only on the frame the combo transitions from not-held
-// to held, so holding it down doesn't restart the countdown every frame.
+// Edge-triggered: true only on the frame a combo transitions from not-held
+// to held, so holding it down doesn't repeat every frame. Each combo tracks
+// its own held-state (`state` is a `static` local owned by the call site).
+static int combo_pressed(u16 combo, u16 exclude, int *state) {
+    int held = combo_held(combo, exclude);
+    int pressed = held && !*state;
+    *state = held;
+    return pressed;
+}
+
 static int reset_combo_pressed(void) {
     static int was_held = 0;
-    int held = reset_combo_held();
-    int pressed = held && !was_held;
-    was_held = held;
-    return pressed;
+    return combo_pressed(RESET_COMBO, U_CBUTTONS, &was_held);
+}
+
+static int win_combo_pressed(void) {
+    static int was_held = 0;
+    return combo_pressed(WIN_COMBO, Z_TRIG, &was_held);
 }
 
 // Actors are re-initialized by the engine's generic per-frame actor
@@ -154,24 +175,40 @@ RECOMP_HOOK_RETURN("func_bonus_800265C0") void bonus_barrel_fail_reset_hook(void
     countdown_start();
 }
 
+// Auto-win combo: calling the same win entry point ourselves plays the same
+// win jingle/text/companion-timer-stop every variant's own win path does.
+// textIndex 0 is the value code_12A0.c's own win call uses, and bank 0x1A is
+// shared by the whole bonus overlay, so it's a safe, always-valid message
+// regardless of which variant is currently active. arg0=0 skips the
+// optional victory-pose animation callout, keeping this minimal.
+static void bonus_barrel_win_tick(void) {
+    if (win_combo_pressed()) {
+        func_bonus_800264E0(0, 0);
+    }
+}
+
 // Manual combo reset: hooked at the entry of each barrel variant's own
 // per-frame update function (one physical function per src/bonus/*.c file;
 // code_0.c's covers several K.Rool barrel challenges internally via its own
 // switch).
 RECOMP_HOOK("func_bonus_80024158") void bonus_barrel_manual_reset_hook_a(void) {
     minigame_reset_tick();
+    bonus_barrel_win_tick();
 }
 
 RECOMP_HOOK("func_bonus_8002570C") void bonus_barrel_manual_reset_hook_b(void) {
     minigame_reset_tick();
+    bonus_barrel_win_tick();
 }
 
 RECOMP_HOOK("func_bonus_800277F8") void bonus_barrel_manual_reset_hook_c(void) {
     minigame_reset_tick();
+    bonus_barrel_win_tick();
 }
 
 RECOMP_HOOK("func_bonus_8002D2F0") void bonus_barrel_manual_reset_hook_d(void) {
     minigame_reset_tick();
+    bonus_barrel_win_tick();
 }
 
 // --- Minecart Mayhem ---
@@ -186,6 +223,13 @@ RECOMP_HOOK_RETURN("func_minecart_800240DC") void minecart_fail_reset_hook(void)
     countdown_start();
 }
 
+// Auto-win combo: textIndex 0xE is the real value code_0.c's own win call
+// uses for this same shared text bank (0x1A). arg0=0 skips the outro
+// cutscene the real win path optionally plays, consistent with the rest of
+// this mod.
 RECOMP_HOOK("func_minecart_80024FD0") void minecart_manual_reset_hook(void) {
     minigame_reset_tick();
+    if (win_combo_pressed()) {
+        func_minecart_80024000(0, 0xE);
+    }
 }

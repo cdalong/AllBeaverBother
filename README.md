@@ -1,8 +1,9 @@
 # Minigame Reset
 
 Lets you reset a DK64 minigame — automatically on failure, or on demand with a button combo —
-instead of sitting through the fail text and outro cutscene. A brief "3, 2, 1, GO!" overlay plays
-before you're dropped back into the fresh attempt.
+instead of sitting through the fail text and outro cutscene, with a brief "3, 2, 1, GO!" overlay
+before you're dropped back into the fresh attempt. A second combo instantly wins the minigame
+you're playing.
 
 Covers Jetpac (Cranky's Lab), every banana barrel bonus minigame (K.Rool barrel challenges,
 Batty Barrel Bandit, Kremling Kosh, Rambi Arena), and Minecart Mayhem.
@@ -18,6 +19,10 @@ Batty Barrel Bandit, Kremling Kosh, Rambi Arena), and Minecart Mayhem.
 ## Controls
 
 Hold **L + R + Z** together during a minigame to trigger a reset.
+
+Hold **L + R + C-Up** together to instantly win the bonus barrel or Minecart Mayhem you're
+currently playing. Not available for Jetpac — it doesn't have a single "win the level" moment the
+same way, just an ongoing score.
 
 Failing a bonus barrel minigame or Minecart Mayhem also triggers a reset on its own — either way,
 the fail text/sound and outro cutscene are skipped and replaced with a short "3, 2, 1, GO!"
@@ -95,6 +100,10 @@ whether to (re)run its one-time setup. Clearing it makes the barrel replay exact
 one-time setup a fresh spawn would, in place, on the next frame — which is the cleanest available
 way to get a full reset without hand-tracking every variant's private counters/timers.
 
+**Manual combo win** calls `func_bonus_800264E0` directly with `textIndex 0` — the value
+`code_12A0.c`'s own win call uses, and bank `0x1A` is shared by the whole bonus overlay, so it's a
+message guaranteed valid no matter which variant is active.
+
 ### Minecart Mayhem
 
 Same architecture as the bonus barrels, just with its own function names:
@@ -105,7 +114,9 @@ Same architecture as the bonus barrels, just with its own function names:
 
 `RECOMP_HOOK_RETURN` on the fail function starts the countdown; `RECOMP_HOOK` on the ride update
 function handles the manual combo trigger and ticks the countdown every frame. Both reuse the
-exact same `unk11C`/bit-`0x10` reset as the bonus barrels.
+exact same `unk11C`/bit-`0x10` reset as the bonus barrels. The win combo calls `func_minecart_80024000`
+directly with `textIndex 0xE` (the value `code_0.c`'s own win call uses) and `arg0=0` to skip the
+outro cutscene the real win path optionally plays.
 
 ### The countdown
 
@@ -159,7 +170,10 @@ countdown on every frame it's held.
     as its main per-frame logic.
 - The countdown's ~1 second-per-step pacing is a rough estimate of the game's logic tick rate, not
   a confirmed value — it may run faster or slower in practice.
-- The manual combo reset doesn't check whether a minigame is mid win/fail transition when pressed;
-  triggering it during that window hasn't been tested.
+- Neither combo checks whether a minigame is mid win/fail transition when pressed; triggering
+  either during that window hasn't been tested.
+- The win combo doesn't check that a Golden Banana/reward hasn't already been collected for the
+  current barrel/minecart run — it just calls the same win path the game itself uses, so it should
+  behave the same as a legitimate win, but this hasn't been verified for every variant.
 - Built and reviewed against the decomp source, but not yet verified in-game — please report
   issues.

@@ -2,8 +2,8 @@
 id = "minigame_reset"
 version = "1.0.0"
 display_name = "Minigame Reset"
-description = "Lets you reset a minigame (Jetpac, banana barrel bonus games, Minecart Mayhem) on failure or with a button combo, with a 3-2-1-GO countdown, skipping fail/outro cutscenes"
-short_description = "Reset minigames on failure or with a button combo, with a 3-2-1-GO countdown"
+description = "Lets you reset a minigame (Jetpac, banana barrel bonus games, Minecart Mayhem) on failure or with a button combo, with a 3-2-1-GO countdown, skipping fail/outro cutscenes. A second combo instantly wins bonus barrels/Minecart Mayhem"
+short_description = "Reset or instant-win minigames with button combos, with a 3-2-1-GO countdown on reset"
 authors = [ "cdalong" ]
 game_id = "dk64"
 minimum_recomp_version = "1.0.0"

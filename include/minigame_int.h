@@ -28,6 +28,9 @@ void func_jetpac_80024F9C(s32 arg0);
 void func_bonus_800264E0(u8 arg0, u8 textIndex);
 void func_bonus_800265C0(u8 arg0, u8 textIndex);
 
+// Minecart Mayhem (src/minecart/code_0.c) - win entry point.
+void func_minecart_80024000(u8 arg0, u8 textIndex);
+
 // UI (src/global_asm) - pure display-list emitters, no allocation or handle
 // to free, safe to call from any function that already has an active dl.
 Gfx *printStyledText(Gfx *dl, s16 style, s16 x, s16 y, u8 *string, u32 extraBitfield);
