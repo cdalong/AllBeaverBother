@@ -107,3 +107,18 @@ RECOMP_CALLBACK("*", recomp_on_flag_change) void log_flag_change(s16 *flag, u8 *
     recomp_printf("[MinigameReset] flag_change: flag=%d target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
         (int)*flag, (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
 }
+
+// --- DIAGNOSTIC: log every cutscene played ---
+//
+// The celebration jingle plays but no Golden Banana appears after winning
+// a redirected challenge - that smells like a reward-reveal cutscene
+// running with the wrong (or an empty) script, since we redirect before
+// the original barrel's own outro-cutscene call (which never runs) and
+// Beaver Bother's own win logic isn't decompiled either. This logs which
+// cutscene index actually plays via recomp_on_cutscene_play - another real
+// declared event (passes the cutscene index and bitfield by pointer, same
+// safe RECOMP_CALLBACK mechanism, not a hook).
+RECOMP_CALLBACK("*", recomp_on_cutscene_play) void log_cutscene_play(s16 *cutscene, u8 *cutscene_bitfield) {
+    recomp_printf("[MinigameReset] cutscene_play: cutscene=%d bitfield=%d (original_target_map=%d, current_map=%d)\n",
+        (int)*cutscene, (int)*cutscene_bitfield, (int)g_original_target_map, (int)current_map);
+}
