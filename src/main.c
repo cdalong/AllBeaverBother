@@ -55,3 +55,38 @@ RECOMP_PATCH void func_jetpac_80025368(Competitor *arg0) {
         }
     }
 }
+
+// --- Bonus barrel minigames: RECOMP_HOOK_RETURN re-test (barrels only) ---
+//
+// func_bonus_800265C0 is the shared "you failed" entry point used by every
+// bonus barrel variant. Earlier testing found RECOMP_HOOK_RETURN unreliable
+// on func_jetpac_80025368 specifically; this re-tests it in isolation on a
+// completely different function, since that earlier result doesn't
+// necessarily generalize. If this build loads and runs without crashing,
+// the hook clears the actor's init-gate bit and resets control_state on
+// both the actor and its companion (unk11C) - the same trick used
+// throughout this mod's history - so the barrel's own per-frame function
+// replays its one-time setup next frame, as if freshly spawned.
+//
+// Whether this actually skips the outro cutscene depends on the specific
+// barrel type: for K.Rool barrel challenges (src/bonus/code_0.c), calling
+// this function is the last thing most fail branches do, so a hook running
+// before it returns should stick. For Batty Barrel Bandit and Kremling
+// Kosh, their callers unconditionally play a cutscene and overwrite
+// control_state immediately after calling this function - a hook here
+// cannot prevent that (a callee can't undo what its caller does after
+// the call returns), so the cutscene will still play for those even if
+// this hook works.
+RECOMP_HOOK_RETURN("func_bonus_800265C0") void bonus_barrel_fail_reset_hook(void) {
+    if (gCurrentActorPointer == NULL) {
+        return;
+    }
+    gCurrentActorPointer->object_properties_bitfield &= ~0x10u;
+    gCurrentActorPointer->control_state = 0;
+    gCurrentActorPointer->control_state_progress = 0;
+    if (gCurrentActorPointer->unk11C != NULL) {
+        gCurrentActorPointer->unk11C->object_properties_bitfield &= ~0x10u;
+        gCurrentActorPointer->unk11C->control_state = 0;
+        gCurrentActorPointer->unk11C->control_state_progress = 0;
+    }
+}
