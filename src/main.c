@@ -22,7 +22,12 @@
 // unlike overwriting `current_map` itself, which only takes effect *after*
 // the wrong room's own content is already loaded.
 extern Maps next_map;
+extern Maps current_map;
 extern u8 D_global_asm_8076A0B2;
+
+// Remembers which map the player actually tried to enter, for the
+// diagnostic logging below - we never touch this ourselves otherwise.
+static Maps g_original_target_map;
 
 static int is_redirect_target_map(Maps map) {
     switch (map) {
@@ -78,6 +83,27 @@ static int is_redirect_target_map(Maps map) {
 
 RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_bother(void) {
     if (D_global_asm_8076A0B2 != 0 && is_redirect_target_map(next_map)) {
+        g_original_target_map = next_map;
         next_map = MAP_BEAVER_BOTHER_EASY;
     }
+}
+
+// --- DIAGNOSTIC: log every permanent-flag change ---
+//
+// recomp_on_flag_change is a real event the base game declares and fires
+// itself right before changing any flag (see sound_options_patches.c
+// upstream) - like dk64recomp_every_frame, this is the safe
+// RECOMP_CALLBACK mechanism, not a hook. It's passed the flag index,
+// target state, and flag type BY POINTER, meaning a subscriber can observe
+// (and in principle rewrite) what's about to change.
+//
+// This build just logs every change via recomp_printf, so we can see what
+// flag(s) actually get touched when winning a redirected minigame (Beaver
+// Bother) - needed because we don't have decompiled source for Beaver
+// Bother's own win condition, or for whatever code normally grants a
+// bonus barrel's reward after you return to the overworld. Remove once
+// we've learned what we need from it.
+RECOMP_CALLBACK("*", recomp_on_flag_change) void log_flag_change(s16 *flag, u8 *target_state, u8 *flag_type) {
+    recomp_printf("[MinigameReset] flag_change: flag=%d target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
+        (int)*flag, (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
 }
