@@ -82,69 +82,79 @@ static int is_redirect_target_map(Maps map) {
     }
 }
 
+// --- Diagnostic trace buffer ---
+//
+// Individual recomp_printf calls scattered across a play session have been
+// unreliable (missing lines, entire sessions with zero output, with no
+// journald rate-limit warning to explain it). Buffering everything in
+// memory and dumping it in one shot - triggered by leaving
+// MAP_BEAVER_BOTHER_EASY, detected every frame via the same
+// dk64recomp_every_frame callback already proven reliable - avoids
+// relying on many individually-timed prints. Also no longer filters to
+// flag == -1 only: that filter might itself be hiding whatever the real
+// signal is on attempts where the result differs.
+#define TRACE_CAPACITY 48
+
+typedef struct {
+    u8 kind; // 0 = flag_change, 1 = cutscene_play
+    s16 a;   // flag or cutscene index
+    u8 b;    // target_state or cutscene_bitfield
+    u8 c;    // flag_type (kind 0 only)
+    Maps map_at_event;
+} TraceEntry;
+
+static TraceEntry g_trace[TRACE_CAPACITY];
+static int g_trace_count = 0;
+static int g_was_in_beaver_bother = 0;
+
+static void trace_add(u8 kind, s16 a, u8 b, u8 c) {
+    if (g_trace_count < TRACE_CAPACITY) {
+        g_trace[g_trace_count].kind = kind;
+        g_trace[g_trace_count].a = a;
+        g_trace[g_trace_count].b = b;
+        g_trace[g_trace_count].c = c;
+        g_trace[g_trace_count].map_at_event = current_map;
+        g_trace_count++;
+    }
+}
+
+static void trace_dump(void) {
+    int i;
+    recomp_printf("[MinigameReset] === trace dump: %d entries, original_target_map=%d ===\n",
+        g_trace_count, (int)g_original_target_map);
+    for (i = 0; i < g_trace_count; i++) {
+        if (g_trace[i].kind == 0) {
+            recomp_printf("[MinigameReset] #%d flag_change flag=%d state=%d type=%d map=%d\n",
+                i, (int)g_trace[i].a, (int)g_trace[i].b, (int)g_trace[i].c, (int)g_trace[i].map_at_event);
+        } else {
+            recomp_printf("[MinigameReset] #%d cutscene cs=%d bitfield=%d map=%d\n",
+                i, (int)g_trace[i].a, (int)g_trace[i].b, (int)g_trace[i].map_at_event);
+        }
+    }
+    recomp_printf("[MinigameReset] === end trace dump ===\n");
+    g_trace_count = 0;
+}
+
 RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_bother(void) {
     if (D_global_asm_8076A0B2 != 0 && is_redirect_target_map(next_map)) {
         g_original_target_map = next_map;
         next_map = MAP_BEAVER_BOTHER_EASY;
     }
-}
 
-// --- Fix Battle Arena rewards ---
-//
-// Confirmed by logging every flag change while winning a redirected
-// challenge: the reward-granting code DOES run right after the win
-// cutscene, but computes flag == -1 (an invalid/no-op sentinel) instead of
-// the real reward, because it derives "which reward" from `current_map` -
-// which is now Beaver Bother's, not the arena actually entered.
-//
-// func_bonus_80024D8C (dk64_decomp src/bonus/code_0.c) is the real,
-// decompiled function that maps a Battle Arena's `current_map` to its
-// crown's permanent flag index (returning -1 for anything else, matching
-// exactly what we observed). This mirrors that same mapping, but keyed on
-// the ORIGINAL map the player actually entered (captured above, before we
-// overwrote next_map) instead of the current (wrong) one.
-//
-// recomp_on_flag_change is a real declared event, fired right before any
-// flag change, passing the flag index/target state/flag type BY POINTER -
-// same safe RECOMP_CALLBACK mechanism as the redirect above, not a hook.
-// Rewriting *flag here changes what the game's own pending setFlag call
-// actually applies.
-static s16 battle_arena_reward_flag(Maps map) {
-    switch (map) {
-        case MAP_BATTLE_ARENA_BEAVER_BRAWL:
-            return 0x261;
-        case MAP_BATTLE_ARENA_KRITTER_KARNAGE:
-            return 0x262;
-        case MAP_BATTLE_ARENA_ARENA_AMBUSH:
-            return 0x263;
-        case MAP_BATTLE_ARENA_MORE_KRITTER_KARNAGE:
-            return 0x264;
-        case MAP_BATTLE_ARENA_KAMIKAZE_KREMLINGS:
-            return 0x265;
-        case MAP_BATTLE_ARENA_FOREST_FRACAS:
-            return 0x266;
-        case MAP_BATTLE_ARENA_BISH_BASH_BRAWL:
-            return 0x267;
-        case MAP_BATTLE_ARENA_PLINTH_PANIC:
-            return 0x268;
-        case MAP_BATTLE_ARENA_PINNACLE_PALAVER:
-            return 0x269;
-        case MAP_BATTLE_ARENA_SHOCKWAVE_SHOWDOWN:
-            return 0x26A;
-        default:
-            return -1;
+    if (current_map == MAP_BEAVER_BOTHER_EASY) {
+        g_was_in_beaver_bother = 1;
+    } else if (g_was_in_beaver_bother) {
+        // Just left Beaver Bother - dump whatever the trace collected
+        // during that whole attempt.
+        g_was_in_beaver_bother = 0;
+        trace_dump();
     }
 }
 
-// TEMPORARY: observe only, no mutation, and no early `return;` mid-function
-// (single fall-through exit only, matching the shape of the
-// dk64recomp_every_frame callback that's still working) - isolating
-// whether an explicit early return is itself what breaks this specific
-// callback, since that's the main structural difference from the version
-// that worked.
-RECOMP_CALLBACK("*", recomp_on_flag_change) void fix_battle_arena_reward_flag(s16 *flag, u8 *target_state, u8 *flag_type) {
-    if (*flag == -1) {
-        recomp_printf("[MinigameReset] flag_change: flag=-1 target_state=%d flag_type=%d (original_target_map=%d, current_map=%d)\n",
-            (int)*target_state, (int)*flag_type, (int)g_original_target_map, (int)current_map);
-    }
+RECOMP_CALLBACK("*", recomp_on_flag_change) void trace_flag_change(s16 *flag, u8 *target_state, u8 *flag_type) {
+    trace_add(0, *flag, *target_state, *flag_type);
+}
+
+RECOMP_CALLBACK("*", recomp_on_cutscene_play) void trace_cutscene_play(s16 *cutscene, u8 *cutscene_bitfield) {
+    trace_add(1, *cutscene, *cutscene_bitfield, 0);
 }
