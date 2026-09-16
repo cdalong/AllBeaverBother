@@ -41,9 +41,11 @@ typedef struct JetpacCompetitor JetpacCompetitor;
 // slightly (our check now runs before the dispatcher decides the outcome,
 // so a very unlucky same-frame race is possible), acceptable for this
 // isolation test.
+// TEST: body deliberately does nothing but read a value - no call into any
+// other game function - to isolate whether the hook merely FIRING at
+// runtime (when the player dies) is what crashes, or specifically calling
+// func_jetpac_80024F9C from inside it.
 RECOMP_HOOK("func_jetpac_80025368") void jetpac_round_end_reset_hook(JetpacCompetitor *arg0) {
     (void)arg0;
-    if (reset_combo_pressed()) {
-        func_jetpac_80024F9C(2);
-    }
+    (void)reset_combo_pressed();
 }
