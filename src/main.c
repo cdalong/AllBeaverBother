@@ -25,12 +25,24 @@ static int reset_combo_pressed(void) {
 // while tracking down a startup crash. Add minigames back one at a time
 // from full-mod once each is confirmed not to trigger the crash.
 //
+// Opaque - never dereferenced, only needed to match func_jetpac_80025368's
+// real parameter type for the entry hook below.
+typedef struct JetpacCompetitor JetpacCompetitor;
+
 // func_jetpac_80025368 is the per-round-end dispatcher: it decides whether
 // to end the game (state 5), respawn the current player (state 2), or
-// return to the title (state 0) based on remaining lives. RECOMP_HOOK_RETURN
-// runs after the real dispatcher has decided the outcome, and if the reset
-// combo is held, forces an immediate respawn regardless of what it decided.
-RECOMP_HOOK_RETURN("func_jetpac_80025368") void jetpac_round_end_reset_hook(void) {
+// return to the title (state 0) based on remaining lives.
+//
+// TEMPORARY: using RECOMP_HOOK (entry, before the original body) here
+// instead of RECOMP_HOOK_RETURN, to test whether RECOMP_HOOK_RETURN
+// specifically is what the mod loader can't handle - DK64 Recompiled's own
+// base-game patches never use RECOMP_HOOK/RECOMP_HOOK_RETURN at all, only
+// RECOMP_PATCH, so this is unproven territory. This changes behavior
+// slightly (our check now runs before the dispatcher decides the outcome,
+// so a very unlucky same-frame race is possible), acceptable for this
+// isolation test.
+RECOMP_HOOK("func_jetpac_80025368") void jetpac_round_end_reset_hook(JetpacCompetitor *arg0) {
+    (void)arg0;
     if (reset_combo_pressed()) {
         func_jetpac_80024F9C(2);
     }
