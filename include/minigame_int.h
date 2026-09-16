@@ -35,21 +35,4 @@ void func_jetpac_80024A4C(void);
 void func_jetpac_800250A0(void);
 void func_jetpac_80024F9C(s32 arg0);
 
-// --- Bonus barrels (src/bonus/*.c) ---
-//
-// Minimal Actor mirror: only the fields this mod touches, at their real
-// offsets (see dk64_decomp include/structs.h `struct actor`).
-typedef struct MinigameActor MinigameActor;
-struct MinigameActor {
-    u8 pad0[0x60];
-    u32 object_properties_bitfield; // at 0x60 - bit 0x10 = "one-time init already ran"
-    u8 pad64[0x11C - 0x64];
-    MinigameActor *unk11C; // at 0x11C - companion actor driving fail/timer conditions
-    u8 pad120[0x154 - 0x120];
-    u8 control_state; // at 0x154
-    u8 control_state_progress; // at 0x155
-};
-
-extern MinigameActor *gCurrentActorPointer;
-
 #endif /* MINIGAME_INTERNAL_H */
