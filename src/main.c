@@ -106,6 +106,13 @@ typedef struct {
 static TraceEntry g_trace[TRACE_CAPACITY];
 static int g_trace_count = 0;
 static int g_was_in_beaver_bother = 0;
+// Frames left before dumping, once we've left Beaver Bother - keeps
+// accumulating trace entries during the delay instead of dumping
+// immediately. A previous attempt dumped (and cleared) the buffer on the
+// very first frame current_map changed away from Beaver Bother, which cut
+// the trace off right as the interesting part should start - the actual
+// post-win events apparently land a few frames later, not instantly.
+static int g_dump_countdown = 0;
 
 static void trace_add(u8 kind, s16 a, u8 b, u8 c) {
     if (g_trace_count < TRACE_CAPACITY) {
@@ -164,11 +171,19 @@ RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_
     if (current_map == MAP_BEAVER_BOTHER_EASY) {
         g_was_in_beaver_bother = 1;
     } else if (g_was_in_beaver_bother) {
-        // Just left Beaver Bother - dump whatever the trace collected
-        // during that whole attempt.
+        // Just left Beaver Bother - start a delay before dumping, instead
+        // of dumping immediately, so events landing a few frames after the
+        // map transition still get captured.
         g_was_in_beaver_bother = 0;
-        recomp_printf("[MinigameReset] left Beaver Bother, dumping trace\n");
-        trace_dump();
+        recomp_printf("[MinigameReset] left Beaver Bother, dumping trace shortly\n");
+        g_dump_countdown = 180; // generous - exact frame rate here isn't confirmed
+    }
+
+    if (g_dump_countdown > 0) {
+        g_dump_countdown--;
+        if (g_dump_countdown == 0) {
+            trace_dump();
+        }
     }
 }
 
