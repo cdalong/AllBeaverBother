@@ -191,12 +191,19 @@ static void bonus_barrel_win_tick(void) {
 // per-frame update function (one physical function per src/bonus/*.c file;
 // code_0.c's covers several K.Rool barrel challenges internally via its own
 // switch).
+//
+// Batty Barrel Bandit's own function (func_bonus_8002570C) is deliberately
+// NOT hooked here: DK64 Recompiled's base build already fully replaces it
+// with its own RECOMP_PATCH (a bug fix - see patches/patches_ui.c upstream,
+// "@recomp: Batty BB"). Hooking an already-patched function forces the mod
+// loader to regenerate/fuse the patch and the hook together at load time,
+// and that regeneration reliably fails ("Error in recompiling
+// patch_function_0" / "Failed to load mod code") and crashes the game on
+// startup - reproduced and confirmed by removing every other mod first.
+// Auto-reset-on-failure still works for Batty Barrel Bandit (it hooks
+// func_bonus_800265C0, which isn't patched by the base game); only the
+// manual combo reset and instant-win combo are unavailable for it.
 RECOMP_HOOK("func_bonus_80024158") void bonus_barrel_manual_reset_hook_a(void) {
-    minigame_reset_tick();
-    bonus_barrel_win_tick();
-}
-
-RECOMP_HOOK("func_bonus_8002570C") void bonus_barrel_manual_reset_hook_b(void) {
     minigame_reset_tick();
     bonus_barrel_win_tick();
 }

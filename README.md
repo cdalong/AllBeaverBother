@@ -86,9 +86,11 @@ fail text/outro cutscene would otherwise play.
 | Function | File |
 |---|---|
 | `func_bonus_80024158` | K.Rool barrel challenges, Mad Maze Maul, Stealthy Snoop |
-| `func_bonus_8002570C` | Batty Barrel Bandit |
 | `func_bonus_800277F8` | Kremling Kosh |
 | `func_bonus_8002D2F0` | Rambi Arena |
+
+Batty Barrel Bandit's function (`func_bonus_8002570C`) is deliberately **not** hooked here — see
+[Known Limitations](#known-limitations).
 
 Both reset paths work the same way: they clear bit `0x10` of the actor's
 `object_properties_bitfield` and zero its `control_state`/`control_state_progress` (also doing
@@ -149,6 +151,15 @@ countdown on every frame it's held.
 
 ## Known Limitations
 
+- **Batty Barrel Bandit has no manual combo reset or instant-win** (auto-reset-on-failure still
+  works for it). DK64 Recompiled's own base build already fully replaces its function
+  (`func_bonus_8002570C`) with a `RECOMP_PATCH` of its own (a bug fix upstream). Hooking an
+  already-patched function forces the mod loader to regenerate/fuse the patch and the hook
+  together at load time, and that regeneration reliably failed in testing — `Error in recompiling
+  patch_function_0` / `Failed to load mod code`, crashing the game on startup. Confirmed by
+  disabling every other mod and reproducing with only this one enabled. If DK64 Recompiled's own
+  patch is ever removed or this regeneration path gets fixed upstream, this hook could be added
+  back.
 - **No Animal Races are covered** (Castle Car Race, Gloomy Galleon Seal Race, Beetle Race, Frantic
   Factory Car Race). Unlike the bonus barrels/minecart, they don't have a shared win/fail
   chokepoint or a stage counter cleanly reset by the bit-`0x10` trick, and each was investigated
