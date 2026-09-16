@@ -1,0 +1,15 @@
+[manifest]
+id = "minigame_reset"
+version = "1.0.0"
+display_name = "Minigame Reset"
+description = "Lets you instantly reset a minigame (Jetpac, banana barrel bonus games) on failure or with a button combo, skipping fail/outro cutscenes"
+short_description = "Instantly reset minigames on failure or with a button combo"
+authors = [ "cdalong" ]
+game_id = "dk64"
+minimum_recomp_version = "1.0.0"
+
+[inputs]
+elf_path = "build/mod.elf"
+mod_filename = "minigame_reset"
+func_reference_syms_file = "Dk64Syms/dump.toml"
+data_reference_syms_files = [ "Dk64Syms/data_dump.toml" ]

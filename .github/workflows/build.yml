@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: sudo apt-get install -y clang lld make
+
+      - name: Build ELF
+        run: make
+
+      - name: Package mod
+        run: |
+          chmod +x RecompModTool
+          mkdir -p bin
+          ./RecompModTool mod.toml bin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minigame_reset
+          path: bin/minigame_reset.nrm
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/minigame_reset.nrm
