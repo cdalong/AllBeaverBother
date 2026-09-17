@@ -2,8 +2,8 @@
 id = "all_beaver_bother"
 version = "1.0.2"
 display_name = "All Beaver Bother"
-description = "Every bonus barrel, animal race, and Minecart Mayhem becomes Beaver Bother (Hard) instead"
-short_description = "All minigames become Beaver Bother"
+description = "Every bonus barrel and single-player Battle Arena becomes Beaver Bother (Hard) instead"
+short_description = "Bonus barrels and Battle Arenas become Beaver Bother"
 authors = [ "cdalong" ]
 game_id = "dk64"
 minimum_recomp_version = "1.0.0"

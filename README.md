@@ -1,7 +1,6 @@
 # All Beaver Bother
 
-Every bonus barrel, animal race, Minecart Mayhem, and single-player Battle Arena attempt
-loads Beaver Bother instead.
+Every bonus barrel and single-player Battle Arena attempt loads Beaver Bother instead.
 
 **Started as a joke mod, turned out rewards mostly still work.** The real minigame you tried to
 enter never actually loads - you always play Beaver Bother - but that doesn't mean the actual
@@ -16,9 +15,9 @@ reward is lost:
   that actor. See [How It Works](#how-it-works).
 - **Single-player Battle Arenas**: the crown is granted correctly too, via a small extra fix in
   this mod (spawning the real crown actor for you to collect), confirmed working for Beaver Brawl.
-- **Animal races and Minecart Mayhem**: not yet confirmed either way.
 
-See [Known Limitations](#known-limitations) for what's left.
+Animal races and Minecart Mayhem are deliberately out of scope - see
+[Known Limitations](#known-limitations).
 
 ## Installation
 
@@ -76,21 +75,21 @@ wrong room.
 Covered maps: every K.Rool barrel challenge, Batty Barrel Bandit, Kremling Kosh, Rambi/Enguarde
 Arena, the full pool of other bonus-barrel minigames (Teetering Turtle Trouble, Stealthy Snoop, Mad
 Maze Maul, Stash Snatch, Busy Barrel Barrage, Splish Splash Salvage, Speedy Swing Sortie, Krazy Kong
-Klamour, Big Bug Bash, Searchlight Seek, Peril Path Panic), the animal races (both beetle
-races, both car races, the seal race), all three Minecart Mayhem difficulties, and all ten
-single-player Battle Arenas (Beaver Brawl, Kritter Karnage, Arena Ambush, More Kritter Karnage,
-Forest Fracas, Bish Bash Brawl, Kamikaze Kremlings, Plinth Panic, Pinnacle Palaver, Shockwave
-Showdown).
+Klamour, Big Bug Bash, Searchlight Seek, Peril Path Panic), and all ten single-player Battle Arenas
+(Beaver Brawl, Kritter Karnage, Arena Ambush, More Kritter Karnage, Forest Fracas, Bish Bash Brawl,
+Kamikaze Kremlings, Plinth Panic, Pinnacle Palaver, Shockwave Showdown).
 
-**Not covered on purpose:**
+**Deliberately out of scope:**
 - **Jetpac** - unlike every other minigame here, Jetpac lives in its own separate game overlay
   (`SetOverlay(8, jetpac_VRAM, ...)`, distinct from the "bonus" overlay Beaver Bother and everything
   else share). Redirecting it loads the bonus overlay instead, but something in the game's own
   overlay-transition bookkeeping still expects to unload the jetpac overlay on return - causing a
   100% reproducible crash when leaving Beaver Bother back to the overworld. Confirmed by two
-  identical segfaults at the same crash address. Fixing this would mean patching DK64's own overlay
-  transition logic, which isn't worth the risk this mod has otherwise avoided by sticking to
-  RECOMP_CALLBACK. Left out entirely.
+  identical segfaults at the same crash address.
+- **Animal races** (Beetle Race, Car Race, Seal Race) and **Minecart Mayhem** - their
+  checkpoint/reward actors and (for races) return-to-overworld navigation depend on the specific
+  map that loaded, the same structural issue Battle Arenas have, but without a clean equivalent to
+  the crown fix worked out yet. See [Known Limitations](#known-limitations).
 - The Kong Battle Arena maps (multiplayer-specific, untested).
 - `MAP_KROOLS_ARENA` (the final boss fight room - redirecting that would likely make the game
   unbeatable).
@@ -157,17 +156,10 @@ any large minigame function at all.
 - Beaver Bother's own win reward (if any) also fires alongside a redirected Battle Arena's crown,
   since Beaver Bother doesn't know it's standing in for something else. Lower priority - not yet
   addressed.
-- Animal races (Beetle Race, Car Race, Seal Race) redirect the map transition, but their reward
-  (and possibly even returning you to the right spot afterward) is suspected broken and hasn't been
-  fixed. Their checkpoint/reward actors live inside the race's own map (never loads once
-  redirected, like Battle Arenas), and the function that returns you to the overworld
-  (`initMapChangeOnRaceExit`) looks up `CurrentMap` in a table keyed by the real race maps - since
-  that's now Beaver Bother, it may not navigate you back correctly either. Investigated, not fixed;
-  left as-is.
-- Minecart Mayhem redirects the map transition correctly but its reward behavior hasn't been
-  confirmed in-game.
 - Only Beaver Brawl has been individually confirmed for the Battle Arena crown fix; the other nine
   arenas go through the same code path and *should* work identically, but haven't been tested one
   by one.
+- Animal races and Minecart Mayhem were investigated and deliberately left out of scope for now
+  (see [How It Works](#how-it-works)) rather than shipped half-working.
 - The Rareware Coin's mechanism hasn't been investigated.
 - Built and reviewed against the decomp source; please report any issues.
