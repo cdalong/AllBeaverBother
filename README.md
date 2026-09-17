@@ -1,4 +1,4 @@
-# Minigame Reset
+# All Beaver Bother
 
 Every bonus barrel, Jetpac, animal race, Minecart Mayhem, and single-player Battle Arena attempt
 loads Beaver Bother instead.
@@ -22,10 +22,10 @@ See [Known Limitations](#known-limitations) for what's left.
 
 ## Installation
 
-1. Download the latest `minigame_reset.nrm` from [Releases](../../releases/latest).
+1. Download the latest `all_beaver_bother.nrm` from [Releases](../../releases/latest).
 2. Place it in your DK64 Recompiled mods folder:
    - **Windows:** `%LOCALAPPDATA%\DK64Recompiled\mods`
-   - **Linux:** `~/.local/share/DK64Recompiled/mods`
+   - **Linux:** `~/.config/DK64Recompiled/mods`
 3. Launch DK64 Recompiled and enable the mod from the mods menu.
 
 ## Building from Source
@@ -43,17 +43,17 @@ See [Known Limitations](#known-limitations) for what's left.
 
 ```bash
 git clone --recurse-submodules <this-repo-url>
-cd MinigameReset
+cd AllBeaverBother
 make
 ./build.sh
 ```
 
-The mod file is written to `bin/minigame_reset.nrm`.
+The mod file is written to `bin/all_beaver_bother.nrm`.
 
 You can also output directly to your mods folder instead of using `build.sh`:
 
 ```bash
-./RecompModTool mod.toml ~/.local/share/DK64Recompiled/mods
+./RecompModTool mod.toml ~/.config/DK64Recompiled/mods
 ```
 
 ## How It Works
@@ -99,7 +99,8 @@ actually played inside.
 
 Battle Arena crowns don't work this way - their reward is computed by an actor placed only inside
 the *arena's own room*, which never loads at all once redirected (Beaver Bother's room doesn't have
-it). For those, this mod watches for Beaver Bother's own win cutscene (cutscene 33) and directly
+it). For those, this mod watches for Beaver Bother's own win cutscene (cutscene 33 on Easy - not yet
+re-confirmed on Hard, which this mod now redirects to) and directly
 spawns the real crown actor - with the correct flag for whichever arena you actually walked into -
 at your current position, via the game's own `func_global_asm_806A5DF0`/`spawnActorWithFlag` call
 (the same one the arena's own crown-granting code would have used). Spawning it at your own position

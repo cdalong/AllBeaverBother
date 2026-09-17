@@ -7,6 +7,6 @@ echo "Running RecompModTool..."
 ./RecompModTool ./mod.toml ./bin
 
 echo "Zipping output file into ./bin..."
-zip -j ./bin/minigame_reset.zip ./bin/minigame_reset.nrm
+zip -j ./bin/all_beaver_bother.zip ./bin/all_beaver_bother.nrm
 
 echo "Complete"

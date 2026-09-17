@@ -213,7 +213,7 @@ static int is_redirect_target_map(Maps map) {
 // unreliable (missing lines, entire sessions with zero output, with no
 // journald rate-limit warning to explain it). Buffering everything in
 // memory and dumping it in one shot - triggered by leaving
-// MAP_BEAVER_BOTHER_EASY, detected every frame via the same
+// MAP_BEAVER_BOTHER_HARD, detected every frame via the same
 // dk64recomp_every_frame callback already proven reliable - avoids
 // relying on many individually-timed prints. Also no longer filters to
 // flag == -1 only: that filter might itself be hiding whatever the real
@@ -295,10 +295,10 @@ RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_
         }
         recomp_printf("[MinigameReset] pending_reward set to %d (crown_flag_lookup=%d)\n",
             g_pending_reward, (int)battle_arena_crown_flag(g_original_target_map));
-        next_map = MAP_BEAVER_BOTHER_EASY;
+        next_map = MAP_BEAVER_BOTHER_HARD;
     }
 
-    if (current_map == MAP_BEAVER_BOTHER_EASY) {
+    if (current_map == MAP_BEAVER_BOTHER_HARD) {
         g_was_in_beaver_bother = 1;
     } else if (g_was_in_beaver_bother) {
         // Just left Beaver Bother - start a delay before dumping, instead
