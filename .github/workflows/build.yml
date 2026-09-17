@@ -32,11 +32,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: minigame_reset
-          path: bin/minigame_reset.nrm
+          name: all_beaver_bother
+          path: bin/all_beaver_bother.nrm
 
       - name: Upload to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: bin/minigame_reset.nrm
+          files: bin/all_beaver_bother.nrm
