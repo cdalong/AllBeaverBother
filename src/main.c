@@ -159,8 +159,6 @@ static int is_redirect_target_map(Maps map) {
         case MAP_PERIL_PATH_PANIC_EASY:
         case MAP_PERIL_PATH_PANIC_NORMAL:
         case MAP_PERIL_PATH_PANIC_HARD:
-        // Jetpac
-        case MAP_JETPAC:
         // Animal races
         case MAP_AZTEC_BEETLE_RACE:
         case MAP_CAVES_BEETLE_RACE:

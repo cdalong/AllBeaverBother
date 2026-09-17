@@ -1,6 +1,6 @@
 # All Beaver Bother
 
-Every bonus barrel, Jetpac, animal race, Minecart Mayhem, and single-player Battle Arena attempt
+Every bonus barrel, animal race, Minecart Mayhem, and single-player Battle Arena attempt
 loads Beaver Bother instead.
 
 **Started as a joke mod, turned out rewards mostly still work.** The real minigame you tried to
@@ -76,15 +76,24 @@ wrong room.
 Covered maps: every K.Rool barrel challenge, Batty Barrel Bandit, Kremling Kosh, Rambi/Enguarde
 Arena, the full pool of other bonus-barrel minigames (Teetering Turtle Trouble, Stealthy Snoop, Mad
 Maze Maul, Stash Snatch, Busy Barrel Barrage, Splish Splash Salvage, Speedy Swing Sortie, Krazy Kong
-Klamour, Big Bug Bash, Searchlight Seek, Peril Path Panic), Jetpac, the animal races (both beetle
+Klamour, Big Bug Bash, Searchlight Seek, Peril Path Panic), the animal races (both beetle
 races, both car races, the seal race), all three Minecart Mayhem difficulties, and all ten
 single-player Battle Arenas (Beaver Brawl, Kritter Karnage, Arena Ambush, More Kritter Karnage,
 Forest Fracas, Bish Bash Brawl, Kamikaze Kremlings, Plinth Panic, Pinnacle Palaver, Shockwave
 Showdown).
 
-**Not covered on purpose:** the Kong Battle Arena maps (multiplayer-specific, untested), and
-`MAP_KROOLS_ARENA` (the final boss fight room - redirecting that would likely make the game
-unbeatable).
+**Not covered on purpose:**
+- **Jetpac** - unlike every other minigame here, Jetpac lives in its own separate game overlay
+  (`SetOverlay(8, jetpac_VRAM, ...)`, distinct from the "bonus" overlay Beaver Bother and everything
+  else share). Redirecting it loads the bonus overlay instead, but something in the game's own
+  overlay-transition bookkeeping still expects to unload the jetpac overlay on return - causing a
+  100% reproducible crash when leaving Beaver Bother back to the overworld. Confirmed by two
+  identical segfaults at the same crash address. Fixing this would mean patching DK64's own overlay
+  transition logic, which isn't worth the risk this mod has otherwise avoided by sticking to
+  RECOMP_CALLBACK. Left out entirely.
+- The Kong Battle Arena maps (multiplayer-specific, untested).
+- `MAP_KROOLS_ARENA` (the final boss fight room - redirecting that would likely make the game
+  unbeatable).
 
 ### Why most rewards still work
 
