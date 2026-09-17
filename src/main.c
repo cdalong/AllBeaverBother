@@ -30,7 +30,7 @@ extern u8 D_global_asm_8076A0B2;
 // ourselves otherwise, only next_map.
 static Maps g_original_target_map;
 
-// --- The actual reward fix, take two ---
+// --- Battle Arena crown reward ---
 //
 // func_bonus_80024D8C (aka getBattleCrownFlagID) only ever gets called from
 // the update code of a specific ACTOR INSTANCE that the Battle Arena's own
@@ -38,32 +38,15 @@ static Maps g_original_target_map;
 // BattleCrownControllerCode / func_bonus_80024E38). Beaver Bother's own room
 // doesn't place that actor at all, so redirecting there means that whole
 // code path - the function, the switch, all of it - simply never runs.
-// Confirmed by trace: patching func_bonus_80024D8C to use
-// g_original_target_map had zero effect on the captured trace, byte-for-byte
-// identical to before the patch. Reimplementing per-arena actor placement to
-// make that actor exist in Beaver Bother's room isn't realistic here.
 //
-// Different approach: don't wait for the game's own (map-specific, actor-
-// gated) reward logic at all. We already know, ourselves, which arena the
-// player actually walked into (g_original_target_map) and we can already see
-// reliably, via recomp_on_cutscene_play, the exact moment Beaver Bother
-// itself signals a win (cutscene 33 - confirmed to fire every successful
-// attempt in every trace so far). So grant the crown flag directly right
-// there, by calling the base game's own real setFlag() - the same function
-// every genuine collectible pickup in the game already goes through - with
-// the flag that arena would have granted. This needs no actor, no hook, and
-// no map-specific code to exist in Beaver Bother's room at all.
-//
-// Take three: calling setFlag() directly grants real credit (confirmed via
-// trace - the flag write shows up), but it's invisible - no crown ever
-// appears, because nothing actually spawned one. Spawning the real crown
-// actor instead (via func_global_asm_806A5DF0/spawnActorWithFlag, the same
-// call BattleCrownControllerCode itself makes - see Ghidra's
-// getBattleCrownFlagID/BattleCrownControllerCode) lets the player physically
-// touch and collect it, which is what should set the flag for real. Spawn it
-// at the player's own position (not the arena's hardcoded coordinates, which
-// mean nothing in Beaver Bother's own room) so it's guaranteed reachable.
-extern void setFlag(s16 flagIndex, u8 newValue, u8 flagType);
+// Instead, we watch for Beaver Bother's own win cutscene (cutscene 33) and
+// spawn the real crown actor ourselves, with the correct flag for whichever
+// arena was actually walked into, via the game's own
+// func_global_asm_806A5DF0/spawnActorWithFlag call - the same one the
+// arena's own crown-granting code would have used. Spawning it at the
+// player's own position means they're already standing on it, so the game's
+// own real pickup/collision code grants it for real - this mod never writes
+// the flag itself.
 extern void func_global_asm_806A5DF0(s16 actor, f32 x, f32 y, f32 z, s16 angle, u8 spawn_type, s16 flag, s32 param8);
 
 // Minimal mirror of just the leading position fields of Actor (see
@@ -133,9 +116,7 @@ static int is_redirect_target_map(Maps map) {
         case MAP_KREMLING_KOSH_HARD:
         case MAP_RAMBI_ARENA:
         case MAP_ENGUARDE_ARENA:
-        // The rest of the pooled bonus-barrel minigames - missed on the
-        // first pass, which only covered a handful of named ones (confirmed
-        // missing in-game: Searchlight Seek walked right past the redirect).
+        // The rest of the pooled bonus-barrel minigames
         case MAP_STEALTHY_SNOOP_NORMAL_NO_LOGO:
         case MAP_STEALTHY_SNOOP_VERY_EASY:
         case MAP_STEALTHY_SNOOP_EASY:
@@ -207,141 +188,33 @@ static int is_redirect_target_map(Maps map) {
     }
 }
 
-// --- Diagnostic trace buffer ---
-//
-// Individual recomp_printf calls scattered across a play session have been
-// unreliable (missing lines, entire sessions with zero output, with no
-// journald rate-limit warning to explain it). Buffering everything in
-// memory and dumping it in one shot - triggered by leaving
-// MAP_BEAVER_BOTHER_HARD, detected every frame via the same
-// dk64recomp_every_frame callback already proven reliable - avoids
-// relying on many individually-timed prints. Also no longer filters to
-// flag == -1 only: that filter might itself be hiding whatever the real
-// signal is on attempts where the result differs.
-#define TRACE_CAPACITY 48
-
-typedef struct {
-    u8 kind; // 0 = flag_change, 1 = cutscene_play
-    s16 a;   // flag or cutscene index
-    u8 b;    // target_state or cutscene_bitfield
-    u8 c;    // flag_type (kind 0 only)
-    Maps map_at_event;
-} TraceEntry;
-
-static TraceEntry g_trace[TRACE_CAPACITY];
-static int g_trace_count = 0;
 static int g_was_in_beaver_bother = 0;
-// Frames left before dumping, once we've left Beaver Bother - keeps
-// accumulating trace entries during the delay instead of dumping
-// immediately. A previous attempt dumped (and cleared) the buffer on the
-// very first frame current_map changed away from Beaver Bother, which cut
-// the trace off right as the interesting part should start - the actual
-// post-win events apparently land a few frames later, not instantly.
-static int g_dump_countdown = 0;
-
-static void trace_add(u8 kind, s16 a, u8 b, u8 c) {
-    if (g_trace_count < TRACE_CAPACITY) {
-        g_trace[g_trace_count].kind = kind;
-        g_trace[g_trace_count].a = a;
-        g_trace[g_trace_count].b = b;
-        g_trace[g_trace_count].c = c;
-        g_trace[g_trace_count].map_at_event = current_map;
-        g_trace_count++;
-    }
-}
-
-static void trace_dump(void) {
-    int i;
-    recomp_printf("[MinigameReset] === trace dump: %d entries, original_target_map=%d ===\n",
-        g_trace_count, (int)g_original_target_map);
-    for (i = 0; i < g_trace_count; i++) {
-        if (g_trace[i].kind == 0) {
-            recomp_printf("[MinigameReset] #%d flag_change flag=%d state=%d type=%d map=%d\n",
-                i, (int)g_trace[i].a, (int)g_trace[i].b, (int)g_trace[i].c, (int)g_trace[i].map_at_event);
-        } else {
-            recomp_printf("[MinigameReset] #%d cutscene cs=%d bitfield=%d map=%d\n",
-                i, (int)g_trace[i].a, (int)g_trace[i].b, (int)g_trace[i].map_at_event);
-        }
-    }
-    recomp_printf("[MinigameReset] === end trace dump ===\n");
-    g_trace_count = 0;
-}
-
-// --- Extra checkpoints ---
-//
-// Added to pin down exactly how far the pipeline gets on a given attempt,
-// separate from the trace dump's contents: is the mod loaded at all, does
-// the redirect itself fire, does the "just left Beaver Bother" edge get
-// detected, and does dk64recomp_every_frame keep firing continuously
-// through a whole session (a periodic heartbeat, since prior tests showed
-// output that stopped appearing entirely with no explanation).
-RECOMP_CALLBACK("*", recomp_on_init) void log_mod_loaded(void) {
-    recomp_printf("[MinigameReset] mod loaded\n");
-}
-
-static u32 g_frame_counter = 0;
 
 RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_bother(void) {
-    g_frame_counter++;
-    if ((g_frame_counter % 300) == 0) {
-        recomp_printf("[MinigameReset] heartbeat: frame=%u current_map=%d\n", g_frame_counter, (int)current_map);
-    }
-
     if (D_global_asm_8076A0B2 != 0 && is_redirect_target_map(next_map)) {
         g_original_target_map = next_map;
-        recomp_printf("[MinigameReset] redirect triggered: original_target_map=%d\n", (int)g_original_target_map);
         if (battle_arena_crown_flag(g_original_target_map) != -1) {
             g_pending_reward = 1;
         }
-        recomp_printf("[MinigameReset] pending_reward set to %d (crown_flag_lookup=%d)\n",
-            g_pending_reward, (int)battle_arena_crown_flag(g_original_target_map));
         next_map = MAP_BEAVER_BOTHER_HARD;
     }
 
     if (current_map == MAP_BEAVER_BOTHER_HARD) {
         g_was_in_beaver_bother = 1;
     } else if (g_was_in_beaver_bother) {
-        // Just left Beaver Bother - start a delay before dumping, instead
-        // of dumping immediately, so events landing a few frames after the
-        // map transition still get captured.
+        // Left Beaver Bother without the win cutscene ever firing (quit/fail)
+        // - don't grant a crown later by mistake on some future, unrelated
+        // win.
         g_was_in_beaver_bother = 0;
-        recomp_printf("[MinigameReset] left Beaver Bother, dumping trace shortly\n");
-        g_dump_countdown = 180; // generous - exact frame rate here isn't confirmed
-        g_pending_reward = 0; // quit/fail without the win cutscene - don't grant later by mistake
-    }
-
-    if (g_dump_countdown > 0) {
-        g_dump_countdown--;
-        if (g_dump_countdown == 0) {
-            trace_dump();
-        }
+        g_pending_reward = 0;
     }
 }
 
-RECOMP_CALLBACK("*", recomp_on_flag_change) void trace_flag_change(s16 *flag, u8 *target_state, u8 *flag_type) {
-    trace_add(0, *flag, *target_state, *flag_type);
-}
-
-RECOMP_CALLBACK("*", recomp_on_cutscene_play) void trace_cutscene_play(s16 *cutscene, u8 *cutscene_bitfield) {
-    trace_add(1, *cutscene, *cutscene_bitfield, 0);
-    recomp_printf("[MinigameReset] cutscene event: cs=%d pending_reward=%d original_target_map=%d\n",
-        (int)*cutscene, g_pending_reward, (int)g_original_target_map);
-
-    // Cutscene 33 is Beaver Bother's own win cutscene (confirmed in every
-    // successful-attempt trace so far). Spawn the redirected arena's real
-    // crown, with its real flag baked in, right here at the player's own
-    // position - instead of relying on any map- or actor-specific code to do
-    // it (see the comment above battle_arena_crown_flag for why that path
-    // never actually runs here), and instead of setting the flag ourselves
-    // directly (which worked, but left nothing to actually touch/collect -
-    // see project memory for why that's also suspected to make a
-    // subsequently-spawned crown just delete itself as "already collected").
+RECOMP_CALLBACK("*", recomp_on_cutscene_play) void grant_battle_arena_crown(s16 *cutscene, u8 *cutscene_bitfield) {
+    // Cutscene 33 is Beaver Bother's own win cutscene.
     if (*cutscene == 33 && g_pending_reward) {
         s32 flag = battle_arena_crown_flag(g_original_target_map);
         if (flag != -1) {
-            recomp_printf("[MinigameReset] spawning crown flag=%d for original_target_map=%d at (%f, %f, %f)\n",
-                (int)flag, (int)g_original_target_map,
-                gPlayerPointer->x_position, gPlayerPointer->y_position, gPlayerPointer->z_position);
             func_global_asm_806A5DF0(0x56, gPlayerPointer->x_position, gPlayerPointer->y_position,
                 gPlayerPointer->z_position, 0, 0, (s16)flag, 0);
         }
