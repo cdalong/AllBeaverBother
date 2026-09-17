@@ -1,6 +1,6 @@
 [manifest]
 id = "all_beaver_bother"
-version = "1.0.0"
+version = "1.0.1"
 display_name = "All Beaver Bother"
 description = "Every bonus barrel, Jetpac, animal race, and Minecart Mayhem becomes Beaver Bother (Hard) instead"
 short_description = "All minigames become Beaver Bother"
