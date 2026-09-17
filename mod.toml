@@ -1,6 +1,6 @@
 [manifest]
 id = "all_beaver_bother"
-version = "1.0.2"
+version = "1.0.3"
 display_name = "All Beaver Bother"
 description = "Every bonus barrel and single-player Battle Arena becomes Beaver Bother (Hard) instead"
 short_description = "Bonus barrels and Battle Arenas become Beaver Bother"
