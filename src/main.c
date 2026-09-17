@@ -30,6 +30,86 @@ extern u8 D_global_asm_8076A0B2;
 // ourselves otherwise, only next_map.
 static Maps g_original_target_map;
 
+// --- The actual reward fix, take two ---
+//
+// func_bonus_80024D8C (aka getBattleCrownFlagID) only ever gets called from
+// the update code of a specific ACTOR INSTANCE that the Battle Arena's own
+// room data places (the "character spawner"/crown-timer actor, see
+// BattleCrownControllerCode / func_bonus_80024E38). Beaver Bother's own room
+// doesn't place that actor at all, so redirecting there means that whole
+// code path - the function, the switch, all of it - simply never runs.
+// Confirmed by trace: patching func_bonus_80024D8C to use
+// g_original_target_map had zero effect on the captured trace, byte-for-byte
+// identical to before the patch. Reimplementing per-arena actor placement to
+// make that actor exist in Beaver Bother's room isn't realistic here.
+//
+// Different approach: don't wait for the game's own (map-specific, actor-
+// gated) reward logic at all. We already know, ourselves, which arena the
+// player actually walked into (g_original_target_map) and we can already see
+// reliably, via recomp_on_cutscene_play, the exact moment Beaver Bother
+// itself signals a win (cutscene 33 - confirmed to fire every successful
+// attempt in every trace so far). So grant the crown flag directly right
+// there, by calling the base game's own real setFlag() - the same function
+// every genuine collectible pickup in the game already goes through - with
+// the flag that arena would have granted. This needs no actor, no hook, and
+// no map-specific code to exist in Beaver Bother's room at all.
+//
+// Take three: calling setFlag() directly grants real credit (confirmed via
+// trace - the flag write shows up), but it's invisible - no crown ever
+// appears, because nothing actually spawned one. Spawning the real crown
+// actor instead (via func_global_asm_806A5DF0/spawnActorWithFlag, the same
+// call BattleCrownControllerCode itself makes - see Ghidra's
+// getBattleCrownFlagID/BattleCrownControllerCode) lets the player physically
+// touch and collect it, which is what should set the flag for real. Spawn it
+// at the player's own position (not the arena's hardcoded coordinates, which
+// mean nothing in Beaver Bother's own room) so it's guaranteed reachable.
+extern void setFlag(s16 flagIndex, u8 newValue, u8 flagType);
+extern void func_global_asm_806A5DF0(s16 actor, f32 x, f32 y, f32 z, s16 angle, u8 spawn_type, s16 flag, s32 param8);
+
+// Minimal mirror of just the leading position fields of Actor (see
+// dk64_decomp/include/structs.h) - avoids pulling in the full struct (and
+// everything it drags in) just to read x/y/z off gPlayerPointer.
+typedef struct {
+    u8 pad_0x7C[0x7C];
+    f32 x_position;
+    f32 y_position;
+    f32 z_position;
+} PlayerPositionMirror;
+extern PlayerPositionMirror *gPlayerPointer;
+
+static s32 battle_arena_crown_flag(Maps map) {
+    switch (map) {
+        case MAP_BATTLE_ARENA_BEAVER_BRAWL:
+            return 0x261;
+        case MAP_BATTLE_ARENA_KRITTER_KARNAGE:
+            return 0x262;
+        case MAP_BATTLE_ARENA_ARENA_AMBUSH:
+            return 0x263;
+        case MAP_BATTLE_ARENA_MORE_KRITTER_KARNAGE:
+            return 0x264;
+        case MAP_BATTLE_ARENA_KAMIKAZE_KREMLINGS:
+            return 0x265;
+        case MAP_BATTLE_ARENA_FOREST_FRACAS:
+            return 0x266;
+        case MAP_BATTLE_ARENA_BISH_BASH_BRAWL:
+            return 0x267;
+        case MAP_BATTLE_ARENA_PLINTH_PANIC:
+            return 0x268;
+        case MAP_BATTLE_ARENA_PINNACLE_PALAVER:
+            return 0x269;
+        case MAP_BATTLE_ARENA_SHOCKWAVE_SHOWDOWN:
+            return 0x26A;
+        default:
+            return -1;
+    }
+}
+
+// Set the moment a redirect happens (only for maps we know how to grant a
+// reward for) and cleared once granted, so a player's genuine, un-redirected
+// Beaver Bother win never accidentally grants a stale crown from an earlier
+// session.
+static int g_pending_reward = 0;
+
 static int is_redirect_target_map(Maps map) {
     switch (map) {
         // Bonus barrels
@@ -53,6 +133,51 @@ static int is_redirect_target_map(Maps map) {
         case MAP_KREMLING_KOSH_HARD:
         case MAP_RAMBI_ARENA:
         case MAP_ENGUARDE_ARENA:
+        // The rest of the pooled bonus-barrel minigames - missed on the
+        // first pass, which only covered a handful of named ones (confirmed
+        // missing in-game: Searchlight Seek walked right past the redirect).
+        case MAP_STEALTHY_SNOOP_NORMAL_NO_LOGO:
+        case MAP_STEALTHY_SNOOP_VERY_EASY:
+        case MAP_STEALTHY_SNOOP_EASY:
+        case MAP_STEALTHY_SNOOP_NORMAL:
+        case MAP_STEALTHY_SNOOP_HARD:
+        case MAP_TEETERING_TURTLE_TROUBLE_VERY_EASY:
+        case MAP_TEETERING_TURTLE_TROUBLE_EASY:
+        case MAP_TEETERING_TURTLE_TROUBLE_NORMAL:
+        case MAP_TEETERING_TURTLE_TROUBLE_HARD:
+        case MAP_MAD_MAZE_MAUL_EASY:
+        case MAP_MAD_MAZE_MAUL_NORMAL:
+        case MAP_MAD_MAZE_MAUL_HARD:
+        case MAP_MAD_MAZE_MAUL_INSANE:
+        case MAP_STASH_SNATCH_EASY:
+        case MAP_STASH_SNATCH_NORMAL:
+        case MAP_STASH_SNATCH_HARD:
+        case MAP_STASH_SNATCH_INSANE:
+        case MAP_BUSY_BARREL_BARRAGE_EASY:
+        case MAP_BUSY_BARREL_BARRAGE_NORMAL:
+        case MAP_BUSY_BARREL_BARRAGE_HARD:
+        case MAP_SPLISH_SPLASH_SALVAGE_EASY:
+        case MAP_SPLISH_SPLASH_SALVAGE_NORMAL:
+        case MAP_SPLISH_SPLASH_SALVAGE_HARD:
+        case MAP_SPEEDY_SWING_SORTIE_EASY:
+        case MAP_SPEEDY_SWING_SORTIE_NORMAL:
+        case MAP_SPEEDY_SWING_SORTIE_HARD:
+        case MAP_KRAZY_KONG_KLAMOUR_EASY:
+        case MAP_KRAZY_KONG_KLAMOUR_NORMAL:
+        case MAP_KRAZY_KONG_KLAMOUR_HARD:
+        case MAP_KRAZY_KONG_KLAMOUR_INSANE:
+        case MAP_BIG_BUG_BASH_VERY_EASY:
+        case MAP_BIG_BUG_BASH_EASY:
+        case MAP_BIG_BUG_BASH_NORMAL:
+        case MAP_BIG_BUG_BASH_HARD:
+        case MAP_SEARCHLIGHT_SEEK_VERY_EASY:
+        case MAP_SEARCHLIGHT_SEEK_EASY:
+        case MAP_SEARCHLIGHT_SEEK_NORMAL:
+        case MAP_SEARCHLIGHT_SEEK_HARD:
+        case MAP_PERIL_PATH_PANIC_VERY_EASY:
+        case MAP_PERIL_PATH_PANIC_EASY:
+        case MAP_PERIL_PATH_PANIC_NORMAL:
+        case MAP_PERIL_PATH_PANIC_HARD:
         // Jetpac
         case MAP_JETPAC:
         // Animal races
@@ -165,6 +290,11 @@ RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_
     if (D_global_asm_8076A0B2 != 0 && is_redirect_target_map(next_map)) {
         g_original_target_map = next_map;
         recomp_printf("[MinigameReset] redirect triggered: original_target_map=%d\n", (int)g_original_target_map);
+        if (battle_arena_crown_flag(g_original_target_map) != -1) {
+            g_pending_reward = 1;
+        }
+        recomp_printf("[MinigameReset] pending_reward set to %d (crown_flag_lookup=%d)\n",
+            g_pending_reward, (int)battle_arena_crown_flag(g_original_target_map));
         next_map = MAP_BEAVER_BOTHER_EASY;
     }
 
@@ -177,6 +307,7 @@ RECOMP_CALLBACK("*", dk64recomp_every_frame) void redirect_everything_to_beaver_
         g_was_in_beaver_bother = 0;
         recomp_printf("[MinigameReset] left Beaver Bother, dumping trace shortly\n");
         g_dump_countdown = 180; // generous - exact frame rate here isn't confirmed
+        g_pending_reward = 0; // quit/fail without the win cutscene - don't grant later by mistake
     }
 
     if (g_dump_countdown > 0) {
@@ -193,4 +324,27 @@ RECOMP_CALLBACK("*", recomp_on_flag_change) void trace_flag_change(s16 *flag, u8
 
 RECOMP_CALLBACK("*", recomp_on_cutscene_play) void trace_cutscene_play(s16 *cutscene, u8 *cutscene_bitfield) {
     trace_add(1, *cutscene, *cutscene_bitfield, 0);
+    recomp_printf("[MinigameReset] cutscene event: cs=%d pending_reward=%d original_target_map=%d\n",
+        (int)*cutscene, g_pending_reward, (int)g_original_target_map);
+
+    // Cutscene 33 is Beaver Bother's own win cutscene (confirmed in every
+    // successful-attempt trace so far). Spawn the redirected arena's real
+    // crown, with its real flag baked in, right here at the player's own
+    // position - instead of relying on any map- or actor-specific code to do
+    // it (see the comment above battle_arena_crown_flag for why that path
+    // never actually runs here), and instead of setting the flag ourselves
+    // directly (which worked, but left nothing to actually touch/collect -
+    // see project memory for why that's also suspected to make a
+    // subsequently-spawned crown just delete itself as "already collected").
+    if (*cutscene == 33 && g_pending_reward) {
+        s32 flag = battle_arena_crown_flag(g_original_target_map);
+        if (flag != -1) {
+            recomp_printf("[MinigameReset] spawning crown flag=%d for original_target_map=%d at (%f, %f, %f)\n",
+                (int)flag, (int)g_original_target_map,
+                gPlayerPointer->x_position, gPlayerPointer->y_position, gPlayerPointer->z_position);
+            func_global_asm_806A5DF0(0x56, gPlayerPointer->x_position, gPlayerPointer->y_position,
+                gPlayerPointer->z_position, 0, 0, (s16)flag, 0);
+        }
+        g_pending_reward = 0;
+    }
 }
